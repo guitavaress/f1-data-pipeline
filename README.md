@@ -143,4 +143,4 @@ Este projeto está sob a licença MIT.
 ## 👨‍💻 Autor
 
 Guilherme Tavares  
-[LinkedIn](https://www.linkedin.com/in/seu-perfil) • [GitHub](https://github.com/seu-usuario)
+[LinkedIn](www.linkedin.com/in/guiitavares) • [GitHub](https://github.com/guitavaress)
