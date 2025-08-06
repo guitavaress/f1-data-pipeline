@@ -1,0 +1,45 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: f1
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/f1
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./cache:/opt/airflow/cache
+    ports:
+      - "8080:8080"
+    command: >
+      bash -c "airflow db init &&
+               airflow users create --username admin --firstname Airflow --lastname Admin --role Admin --email admin@example.com --password admin &&
+               airflow scheduler & airflow webserver"
+
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.7.11
+    volumes:
+      - ./dbt:/dbt
+      - ./profiles.yml:/root/.dbt/profiles.yml
+    working_dir: /dbt
+    entrypoint: ["bash", "-c"]
+    command: ["dbt run"]
+
+volumes:
+  pgdata:
