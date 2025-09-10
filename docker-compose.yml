@@ -22,24 +22,19 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/f1
+      # Adicione esta variável para o Cosmos encontrar o profiles.yml
+      DBT_PROFILES_DIR: /opt/airflow/f1_transform
     volumes:
       - ./dags:/opt/airflow/dags
       - ./cache:/opt/airflow/cache
+      # Mapeie o projeto dbt e o profiles para dentro do container do Airflow
+      - ./f1_transform:/opt/airflow/f1_transform
     ports:
       - "8080:8080"
     command: >
       bash -c "airflow db init &&
                airflow users create --username admin --firstname Airflow --lastname Admin --role Admin --email admin@example.com --password admin &&
                airflow scheduler & airflow webserver"
-
-  dbt:
-    image: ghcr.io/dbt-labs/dbt-postgres:1.7.11
-    volumes:
-      - ./dbt:/dbt
-      - ./profiles.yml:/root/.dbt/profiles.yml
-    working_dir: /dbt
-    entrypoint: ["bash", "-c"]
-    command: ["dbt run"]
 
 volumes:
   pgdata:

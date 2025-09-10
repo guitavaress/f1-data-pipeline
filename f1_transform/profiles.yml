@@ -4,8 +4,8 @@ f1_transform:
     dev:
       type: postgres
       host: postgres
-      port: 5432
       user: airflow
       password: airflow
+      port: 5432
       dbname: f1
-      schema: analytics
+      schema: dbt_airflow # Change this schema to something new

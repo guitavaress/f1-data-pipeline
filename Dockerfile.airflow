@@ -6,4 +6,7 @@ RUN pip install --no-cache-dir \
     fastf1 \
     pandas \
     sqlalchemy \
-    psycopg2-binary
+    psycopg2-binary \
+    # Adicione essas duas linhas
+    dbt-postgres==1.7.11 \
+    astronomer-cosmos
