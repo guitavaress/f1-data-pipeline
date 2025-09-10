@@ -1,146 +1,94 @@
+# 🏎️ F1 Data Pipeline
 
-# 🏎️ F1 Analytics Pipeline com Airflow, FastF1, Postgres e dbt
+Este projeto é um pipeline de dados simples para coletar, transformar e carregar dados de voltas de corrida da Fórmula 1 usando Airflow, dbt e PostgreSQL. Ele demonstra uma arquitetura de dados em camadas (`raw`, `staging`, `marts`) para garantir a organização e a qualidade dos dados.
 
-Este projeto implementa um pipeline de dados para coletar, armazenar e transformar dados da Fórmula 1 utilizando:
+-----
 
-- [Apache Airflow](https://airflow.apache.org/) como orquestrador
-- [FastF1](https://theoehrly.github.io/Fast-F1/) para ingestão dos dados
-- [PostgreSQL](https://www.postgresql.org/) como data warehouse
-- [dbt](https://www.getdbt.com/) para transformações analíticas
+### **Visão Geral da Arquitetura**
 
----
+O pipeline utiliza a seguinte arquitetura:
 
-## 📁 Estrutura do Projeto
+  * **Fonte de Dados**: A biblioteca Python `FastF1` é usada para extrair dados brutos de voltas de corrida da F1.
+  * **Ingestão de Dados**: Apache Airflow gerencia a orquestração do pipeline, executando a ingestão dos dados para o banco de dados.
+  * **Armazenamento de Dados**: PostgreSQL armazena os dados em diferentes esquemas, representando cada etapa da transformação.
+  * **Transformação de Dados**: dbt (Data Build Tool) é usado para transformar os dados brutos em modelos prontos para análise, seguindo a arquitetura em camadas (`raw`, `staging`, `marts`).
+  * **Orquestração**: Apache Airflow é responsável por agendar e executar as tarefas de ingestão e transformação.
+
+-----
+
+### **Estrutura do Projeto**
+
+```
+f1-data-pipeline/
+├── dags/
+│   ├── fastf1_load.py              # Definição do pipeline do Airflow
+├── f1_transform/                   # Projeto dbt para transformação dos dados
+│   ├── dbt_project.yml
+│   ├── profiles.yml
+│   ├── models/
+│   │   ├── staging/
+│   │   │   └── stg_laps.sql        # Limpeza e preparação dos dados
+│   │   └── marts/
+│   │       └── agg_laps.sql        # Modelo final para análise
+│   ├── macros/
+│   │   └── schema_macros.sql       # Macro para controle dos esquemas
+├── docker-compose.yml              # Configuração dos serviços (Airflow, Postgres)
+├── Dockerfile.airflow              # Define o ambiente do Airflow
+└── README.md
+```
+
+-----
+
+### **Como Usar**
+
+#### **1. Pré-requisitos**
+
+Certifique-se de ter o Docker e o Docker Compose instalados em sua máquina.
+
+#### **2. Configuração do Ambiente**
+
+Clone este repositório e navegue até a pasta do projeto.
 
 ```bash
-.
-├── dags/                    # DAGs do Airflow
-│   ├── fastf1_load.py       # DAG principal para ingestão FastF1
-│   └── load_fastf1.py       # Script de ingestão com FastF1
-├── cache/                   # Cache local usado pelo FastF1
-├── dbt/                     # Diretório de modelos dbt
-├── scripts/                 # Scripts auxiliares, se necessário
-├── Dockerfile.airflow       # Dockerfile customizado para Airflow
-├── docker-compose.yml       # Configuração de todos os serviços
-├── profiles.yml             # Perfil do dbt para conexão com o Postgres
-└── README.md                # Este arquivo
+git clone <URL_DO_SEU_REPOSITORIO>
+cd f1-data-pipeline
 ```
 
----
+#### **3. Execução dos Serviços**
 
-## 🚀 Como Executar Localmente
-
-### 1. Pré-requisitos
-
-- Docker e Docker Compose instalados
-- Porta `8080` (Airflow) e `5432` (Postgres) disponíveis
-
-### 2. Clonar o repositório
+Inicie os contêineres do Docker:
 
 ```bash
-git clone https://github.com/seu-usuario/seu-repo.git
-cd seu-repo
+docker-compose up --build
 ```
 
-### 3. Criar as pastas necessárias
+O contêiner do Airflow iniciará, e você poderá acessar a UI do Airflow em `http://localhost:8080`. Use as credenciais `admin` para o usuário e senha.
 
-```bash
-mkdir -p ./cache ./scripts
-```
+#### **4. Verificação**
 
-> 🔒 A pasta `./cache` é usada pelo FastF1 como diretório de cache e precisa ter permissão de escrita.
+No Airflow, a DAG chamada `f1_pipeline` deve estar visível e pronta para ser executada. Dispare a DAG manualmente para iniciar o pipeline.
 
-### 4. Subir os containers
+Ao concluir, você pode verificar os esquemas e tabelas no seu banco de dados PostgreSQL usando uma ferramenta como o DBeaver. Você verá as seguintes tabelas criadas:
 
-```bash
-docker-compose up -d --build
-```
+  * `raw.fastf1_laps`
+  * `staging.stg_laps`
+  * `marts.agg_laps`
 
-### 5. Acessar o Airflow
+-----
 
-Abra [http://localhost:8080](http://localhost:8080) no navegador.
+### **Detalhes Técnicos**
 
-- **Usuário**: `admin`
-- **Senha**: `admin`
+#### **Arquivos de Configuração**
 
----
+  * **`docker-compose.yml`**: Configura os serviços `postgres` e `airflow`, montando os diretórios do projeto para que o Airflow possa acessá-los.
+  * **`f1_transform/dbt_project.yml`**: Define o projeto dbt, as camadas (`staging`, `marts`) e o materializado das tabelas.
+  * **`f1_transform/profiles.yml`**: Armazena as credenciais de conexão com o banco de dados. É um arquivo de configuração sensível.
+  * **`f1_transform/macros/schema_macros.sql`**: Contém uma macro personalizada que garante que os esquemas (`staging`, `marts`) sejam criados sem o prefixo padrão do dbt, evitando problemas de concatenação.
 
-## 🛠️ DAG Principal
+#### **DAG `fastf1_load.py`**
 
-- **Nome**: `fastf1_to_postgres`
-- **Função**: coleta dados da Fórmula 1 via `FastF1` e insere no banco Postgres
+A DAG é dividida em três tarefas principais:
 
----
-
-## 🧠 Transformações com dbt
-
-O serviço `dbt` roda os modelos a partir do diretório `./dbt`, com configuração em `profiles.yml`.
-
-Para executar os modelos manualmente:
-
-```bash
-docker-compose run --rm dbt run
-```
-
----
-
-## ⚙️ Configurações Técnicas
-
-### docker-compose.yml
-
-Inclui os seguintes serviços:
-
-- **Postgres**: base de dados para armazenamento
-- **Airflow**: orquestrador das DAGs
-- **dbt**: ferramenta para transformação de dados
-
-Volumes montados:
-
-```yaml
-volumes:
-  - ./dags:/opt/airflow/dags
-  - ./cache:/opt/airflow/cache
-  - ./scripts:/opt/airflow/dags
-```
-
-### Airflow Cache com FastF1
-
-O script `load_fastf1.py` ativa o cache no caminho:
-
-```python
-fastf1.Cache.enable_cache("/opt/airflow/cache")
-```
-
----
-
-## 🧪 Testes
-
-Você pode rodar a DAG manualmente na interface do Airflow ou configurar uma agenda para execuções automáticas.
-
----
-
-## 🧹 Dicas de Debug
-
-- Se a DAG não aparecer: verifique a extensão `.py` dos arquivos dentro de `dags/` e reinicie o Airflow.
-- Se der erro de cache: verifique permissões da pasta `./cache` e se ela foi criada corretamente.
-
----
-
-## 📌 Roadmap Futuro
-
-- Armazenamento histórico por temporada
-- Criação de materializações dbt (`incremental` e `view`)
-- Conexão com ferramentas de BI (ex: Metabase ou Superset)
-
----
-
-## 📝 Licença
-
-Este projeto está sob a licença MIT.
-
----
-
-## 👨‍💻 Autor
-
-Guilherme Tavares  
-[LinkedIn](www.linkedin.com/in/guiitavares) • [GitHub](https://github.com/guitavaress)
+1.  **`create_schemas`**: Cria os esquemas `raw`, `staging` e `marts` no PostgreSQL antes de qualquer operação.
+2.  **`ingest_data`**: Coleta os dados de uma corrida da F1 e os carrega para a tabela `raw.fastf1_laps`.
+3.  **`transform_data`**: Uma tarefa do Cosmos que executa o projeto dbt, transformando os dados de `raw` para `staging` e depois para `marts`.
