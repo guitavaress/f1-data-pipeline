@@ -19,7 +19,6 @@ def create_schemas():
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS staging;"))
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS marts;"))
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS dbt_airflow;"))
-        conn.commit()
         print("Esquemas criados ou já existentes.")
 
 @task
