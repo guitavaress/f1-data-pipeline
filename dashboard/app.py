@@ -45,7 +45,7 @@ with st.sidebar:
     ])
 
     st.markdown("---")
-    year_range = st.slider("Período", 2014, 2025, (2018, 2025))
+    year_range = st.slider("Período", 2014, 2026, (2018, 2026))
     compounds  = st.multiselect(
         "Compostos",
         ["SOFT", "MEDIUM", "HARD"],
@@ -58,7 +58,7 @@ def compound_color_map(compounds):
 
 # ══════════════════════════════════════════════════════════════════════════════
 if page == "🏠 Visão Geral":
-    st.title("🏎️ Pirelli Tyre Analytics — F1 2014–2025")
+    st.title("🏎️ Pirelli Tyre Analytics — F1 2014–2026")
     st.caption("Análise baseada em dados reais do FastF1 · Schema medallion · dbt + Airflow")
 
     col1, col2, col3, col4 = st.columns(4)

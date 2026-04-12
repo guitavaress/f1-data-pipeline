@@ -5,12 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="df0768eb-ebf9-4643-9976-b51ed8e0753a" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/dbt_airflow.79nkLQ.meta" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/dbt_airflow.79nkLQ.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/marts.XdQtBg.meta" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/marts.XdQtBg.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/public.abK9xQ.meta" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/public.abK9xQ.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/raw.KLgBAA.meta" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/raw.KLgBAA.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/staging.Oxjmjg.meta" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/5b3d2e57-e0a5-4848-a3b4-b99dd58cbd2f/storage_v2/_src_/database/f1.iwwAAA/schema/staging.Oxjmjg.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dags/load_fastf1.py" beforeDir="false" afterPath="$PROJECT_DIR$/dags/load_fastf1.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/f1_transform/dbt_project.yml" beforeDir="false" afterPath="$PROJECT_DIR$/f1_transform/dbt_project.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/f1_transform/models/marts/agg_laps.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/f1_transform/models/src.yml" beforeDir="false" afterPath="$PROJECT_DIR$/f1_transform/models/src.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/f1_transform/models/staging/stg_laps.sql" beforeDir="false" afterPath="$PROJECT_DIR$/f1_transform/models/staging/stg_laps.sql" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -20,29 +22,29 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 0
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 0
+}</component>
   <component name="ProjectId" id="3CBvl1TfLcW8TOZu4VDXw5Ad20j" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "master",
-    "last_opened_file_path": "C:/Users/gui_t"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/gui_t&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "postgresql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;postgresql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
       <changelist id="df0768eb-ebf9-4643-9976-b51ed8e0753a" name="Changes" comment="" />

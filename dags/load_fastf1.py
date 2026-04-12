@@ -64,7 +64,7 @@ def load_session(year: int, round_number: int, event_name: str):
               if_exists="append", index=False)
     print(f"  ✓ {len(df)} voltas — {event_name} {year} (round {round_number})")
 
-def main(year: int = 2025):
+def main(year: int = 2026):
     processed = get_processed_rounds(year)
     schedule  = fastf1.get_event_schedule(year)
     races     = schedule[schedule['EventFormat'] != 'testing']
