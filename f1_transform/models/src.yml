@@ -1,7 +1,11 @@
 version: 2
-
 sources:
   - name: raw
-    schema: raw # Certifique-se de que a sua fonte está declarada neste esquema
+    schema: raw
     tables:
       - name: fastf1_laps
+        columns:
+          - name: compound
+            tests: [not_null]
+          - name: year
+            tests: [not_null]

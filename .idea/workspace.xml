@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="df0768eb-ebf9-4643-9976-b51ed8e0753a" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/dags/load_fastf1.py" beforeDir="false" afterPath="$PROJECT_DIR$/dags/load_fastf1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/f1_transform/dbt_project.yml" beforeDir="false" afterPath="$PROJECT_DIR$/f1_transform/dbt_project.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/f1_transform/models/marts/agg_laps.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/f1_transform/models/src.yml" beforeDir="false" afterPath="$PROJECT_DIR$/f1_transform/models/src.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/f1_transform/models/staging/stg_laps.sql" beforeDir="false" afterPath="$PROJECT_DIR$/f1_transform/models/staging/stg_laps.sql" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 0
+}]]></component>
+  <component name="ProjectId" id="3CBvl1TfLcW8TOZu4VDXw5Ad20j" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "last_opened_file_path": "C:/Users/gui_t"
+  },
+  "keyToStringList": {
+    "DatabaseDriversLRU": [
+      "postgresql"
+    ]
+  }
+}]]></component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="df0768eb-ebf9-4643-9976-b51ed8e0753a" name="Changes" comment="" />
+      <created>1775871925824</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1775871925824</updated>
+    </task>
+    <servers />
+  </component>
+</project>

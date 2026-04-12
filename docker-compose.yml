@@ -36,5 +36,19 @@ services:
                airflow users create --username admin --firstname Airflow --lastname Admin --role Admin --email admin@example.com --password admin &&
                airflow scheduler & airflow webserver"
 
+  streamlit:
+      build:
+        context: .
+        dockerfile: Dockerfile.streamlit
+      depends_on:
+        - postgres
+      ports:
+        - "8501:8501"
+      volumes:
+        - ./dashboard:/app
+      environment:
+        - DB_HOST=postgres
+      command: streamlit run /app/app.py --server.port=8501 --server.address=0.0.0.0
+
 volumes:
   pgdata:

@@ -1,0 +1,18 @@
+version: 2
+models:
+  - name: tyre_degradation
+    description: "Degradação de pneus por composto, circuito e ano"
+    columns:
+      - name: avg_deg_per_lap_s
+        description: "Aumento médio de tempo por volta no stint (segundos)"
+      - name: yoy_deg_delta
+        description: "Diferença de degradação vs ano anterior (negativo = melhoria)"
+
+  - name: compound_evolution
+    description: "Evolução dos compostos Pirelli de 2014 a hoje"
+    columns:
+      - name: yoy_deg_improvement
+        description: "Melhoria de degradação vs ano anterior"
+
+  - name: circuit_tyre_profile
+    description: "Perfil de agressividade de cada circuito com os pneus"
