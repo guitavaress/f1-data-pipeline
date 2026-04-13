@@ -12,7 +12,8 @@ stints as (
         team,
         stint,
         compound,
-        min(lap_number)             as first_lap,
+        max(compound_name) as compound_name,   -- ← NOVO (é o mesmo dentro do stint)
+        min(lap_number)    as first_lap,
         max(lap_number)             as last_lap,
         max(tyre_life)              as stint_length,
         count(*)                    as laps_in_stint,

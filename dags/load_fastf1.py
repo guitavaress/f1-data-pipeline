@@ -11,10 +11,12 @@ engine = create_engine(DB_URI)
 LAP_COLUMNS = [
     "Driver", "DriverNumber", "Team",
     "LapTime", "LapNumber", "TrackStatus",
-    "Compound", "TyreLife", "Stint", "FreshTyre",   # ← NOVO
-    "Sector1Time", "Sector2Time", "Sector3Time",     # ← NOVO
-    "SpeedI1", "SpeedI2", "SpeedFL",                 # ← NOVO
-    "PitOutTime", "PitInTime",                        # ← NOVO
+    "Compound",      # SOFT / MEDIUM / HARD
+    "CompoundName",  # ← C1 / C2 / C3 / C4 / C5 (quando disponível)
+    "TyreLife", "Stint", "FreshTyre",
+    "Sector1Time", "Sector2Time", "Sector3Time",
+    "SpeedI1", "SpeedI2", "SpeedFL",
+    "PitOutTime", "PitInTime",
 ]
 
 def get_processed_rounds(year: int) -> set:
@@ -50,15 +52,29 @@ def load_session(year: int, round_number: int, event_name: str):
             df[col] = pd.to_timedelta(df[col]).dt.total_seconds()
 
     df.columns = df.columns.str.lower()
-    df["fetch_time"]    = datetime.utcnow()
-    df["round_number"]  = round_number
-    df["event_name"]    = event_name
-    df["year"]          = year
-    df["circuit_key"]   = session.event.get("OfficialEventName", event_name)
+    df["fetch_time"]   = datetime.utcnow()
+    df["round_number"] = round_number
+    df["event_name"]   = event_name
+    df["year"]         = year
+    df["circuit_key"]  = session.event.get("OfficialEventName", event_name)
 
-    # Normaliza compound para maiúsculas e remove nulos
     if "compound" in df.columns:
         df["compound"] = df["compound"].str.upper().fillna("UNKNOWN")
+
+    # Normaliza compound_name
+    if "compoundname" in df.columns:
+        df["compoundname"] = df["compoundname"].str.upper().fillna("UNKNOWN")
+    else:
+        df["compoundname"] = "UNKNOWN"
+
+    compound_fallback = {
+        "SOFT": "C_SOFT", "MEDIUM": "C_MEDIUM", "HARD": "C_HARD",
+        "INTERMEDIATE": "INTER", "WET": "WET"
+    }
+    mask = df["compoundname"] == "UNKNOWN"
+    df.loc[mask, "compoundname"] = (
+        df.loc[mask, "compound"].map(compound_fallback).fillna("UNKNOWN")
+    )
 
     df.to_sql("fastf1_laps", engine, schema="raw",
               if_exists="append", index=False)
