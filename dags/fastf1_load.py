@@ -1,30 +1,45 @@
 from airflow.decorators import dag, task
+from airflow.exceptions import AirflowSkipException
 from datetime import datetime
 from cosmos import DbtTaskGroup, ProjectConfig
 from cosmos.config import ProfileConfig
 from sqlalchemy import create_engine, text
 
+# ── Configuração ──────────────────────────────────────────────────────────────
 DB_URI = "postgresql+psycopg2://airflow:airflow@postgres:5432/f1"
 
-# Ano corrente — atualize quando virar temporada
-CURRENT_YEAR = 2026
+# Atualize para 2027 quando a temporada virar
+CURRENT_YEAR = datetime.now().year
 
+# ── dbt ───────────────────────────────────────────────────────────────────────
+dbt_project_config = ProjectConfig(
+    dbt_project_path="/opt/airflow/f1_transform",
+)
+
+profile_config = ProfileConfig(
+    profile_name="f1_transform",
+    target_name="dev",
+    profiles_yml_filepath="/opt/airflow/f1_transform/profiles.yml"
+)
+
+# ── Tasks ─────────────────────────────────────────────────────────────────────
 @task
 def create_schemas():
+    """Cria os esquemas necessários no banco se não existirem."""
     engine = create_engine(DB_URI)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw;"))
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS staging;"))
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS marts;"))
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS dbt_airflow;"))
-        conn.commit()
     print("Esquemas criados ou já existentes.")
+
 
 @task
 def check_new_data() -> bool:
     """
-    Retorna True se há corridas novas para processar.
-    A task seguinte só executa se True.
+    Verifica se há corridas novas para processar.
+    Retorna True se houver, False caso contrário.
     """
     from load_fastf1 import get_processed_rounds
     import fastf1
@@ -41,7 +56,7 @@ def check_new_data() -> bool:
     ]
 
     print(f"Ano: {CURRENT_YEAR}")
-    print(f"Rounds processados: {sorted(processed_rounds)}")
+    print(f"Rounds já processados: {sorted(processed_rounds)}")
     print(f"Corridas novas disponíveis: {len(new_races)}")
 
     if not new_races.empty:
@@ -49,39 +64,22 @@ def check_new_data() -> bool:
 
     return len(new_races) > 0
 
+
 @task
 def ingest_fastf1_data(has_new_data: bool):
     """
-    Só ingere se check_new_data retornou True.
+    Ingere corridas novas se houver.
+    Caso não haja, apenas loga e segue — o dbt vai rodar de qualquer forma.
     """
     if not has_new_data:
-        print("Nenhuma corrida nova — ingestão pulada.")
-        return False
+        print("Nenhuma corrida nova — ingestão pulada. dbt vai rodar mesmo assim.")
+        return
 
     from load_fastf1 import main
     main(year=CURRENT_YEAR)
-    return True
 
-@task
-def should_run_dbt(ingested: bool):
-    """
-    Passa o sinal para o dbt só se houve ingestão.
-    """
-    if not ingested:
-        print("Sem dados novos — dbt pulado.")
-        raise Exception("skip")  # interrompe sem marcar como falha
-    print("Dados novos ingeridos — executando dbt.")
 
-dbt_project_config = ProjectConfig(
-    dbt_project_path="/opt/airflow/f1_transform",
-)
-
-profile_config = ProfileConfig(
-    profile_name="f1_transform",
-    target_name="dev",
-    profiles_yml_filepath="/opt/airflow/f1_transform/profiles.yml"
-)
-
+# ── DAG ───────────────────────────────────────────────────────────────────────
 @dag(
     dag_id="f1_pipeline",
     start_date=datetime(2024, 1, 1),
@@ -90,11 +88,15 @@ profile_config = ProfileConfig(
     doc_md="""
     # Pipeline F1 — Incremental
 
+    Roda diariamente. Verifica se há corridas novas e ingere se houver.
+    O dbt **sempre** roda ao final, garantindo que o backfill e
+    reprocessamentos manuais sejam refletidos nos marts.
+
     **Fluxo:**
-    1. Cria schemas
-    2. Verifica se há corridas novas no calendário
-    3. Se sim → ingere; se não → para aqui
-    4. Se ingeriu → roda dbt; se não → para aqui
+    1. Cria schemas (idempotente)
+    2. Verifica corridas novas no calendário FastF1
+    3. Ingere se houver novas — pula silenciosamente se não houver
+    4. Roda dbt (sempre)
     """,
     tags=["f1", "elt", "incremental"],
 )
@@ -102,7 +104,6 @@ def f1_pipeline():
     create_schema_task = create_schemas()
     check_task         = check_new_data()
     ingest_task        = ingest_fastf1_data(check_task)
-    gate_task          = should_run_dbt(ingest_task)
 
     transform_task = DbtTaskGroup(
         group_id="dbt_transform",
@@ -110,6 +111,7 @@ def f1_pipeline():
         profile_config=profile_config,
     )
 
-    create_schema_task >> check_task >> ingest_task >> gate_task >> transform_task
+    create_schema_task >> check_task >> ingest_task >> transform_task
+
 
 f1_pipeline()
