@@ -8,8 +8,9 @@ aggregated as (
     select
         year,
         circuit_key,
-        event_name,
+        max(event_name)                                 as event_name,
         compound,
+        max(compound_name)                              as compound_name,  -- ← NOVO
 
         count(distinct driver)                          as driver_count,
         count(*)                                        as total_stints,
@@ -28,7 +29,7 @@ aggregated as (
         round(avg(avg_lap_s)::numeric, 3)               as avg_pace_s
 
     from stints
-    group by 1,2,3,4
+    group by 1,2,4
 )
 select
     *,

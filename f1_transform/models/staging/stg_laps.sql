@@ -19,7 +19,8 @@ cleaned as (
         lapnumber::int                             as lap_number,
 
         -- pneus
-        upper(coalesce(compound, 'UNKNOWN'))       as compound,
+        upper(coalesce(compound, 'UNKNOWN'))       as compound,       -- SOFT/MEDIUM/HARD
+        upper(coalesce(compoundname, 'UNKNOWN'))   as compound_name,  -- C1/C2/C3/C4/C5 ← NOVO
         tyrelife::int                              as tyre_life,
         stint::int                                 as stint,
         freshtyre::boolean                         as is_fresh_tyre,

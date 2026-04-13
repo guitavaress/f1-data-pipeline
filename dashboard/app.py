@@ -46,15 +46,23 @@ with st.sidebar:
 
     st.markdown("---")
     year_range = st.slider("Período", 2014, 2026, (2018, 2026))
-    compounds  = st.multiselect(
+    compounds = st.multiselect(
         "Compostos",
         ["SOFT", "MEDIUM", "HARD"],
         default=["SOFT", "MEDIUM", "HARD"],
     )
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def compound_color_map(compounds):
-    return {c: COMPOUND_COLORS.get(c, "#888") for c in compounds}
+# ── Helper: formata dataframe sem quebrar em NaN ──────────────────────────────
+def safe_dataframe(df: pd.DataFrame, col_config: dict):
+    display = df.copy()
+    for col in col_config:
+        if col in display.columns:
+            display[col] = pd.to_numeric(display[col], errors="coerce")
+    st.dataframe(display, use_container_width=True, column_config=col_config)
+
+# ── Helper: monta cláusula IN para compostos ─────────────────────────────────
+def compounds_sql(lst):
+    return ",".join([f"'{c}'" for c in lst])
 
 # ══════════════════════════════════════════════════════════════════════════════
 if page == "🏠 Visão Geral":
@@ -63,24 +71,23 @@ if page == "🏠 Visão Geral":
 
     col1, col2, col3, col4 = st.columns(4)
 
-    total_stints = query("SELECT count(*) as n FROM marts.tyre_degradation")
-    years_covered = query("SELECT count(distinct year) as n FROM marts.compound_evolution")
-    circuits = query("SELECT count(distinct circuit_key) as n FROM marts.circuit_tyre_profile")
-    compounds_count = query("SELECT count(distinct compound) as n FROM marts.compound_evolution")
+    total_stints   = query("SELECT count(*) as n FROM marts.tyre_degradation")
+    years_covered  = query("SELECT count(distinct year) as n FROM marts.compound_evolution")
+    circuits       = query("SELECT count(distinct circuit_key) as n FROM marts.circuit_tyre_profile")
+    compounds_cnt  = query("SELECT count(distinct compound) as n FROM marts.compound_evolution")
 
     col1.metric("Stints analisados", f"{int(total_stints['n'][0]):,}")
-    col2.metric("Temporadas", int(years_covered['n'][0]))
-    col3.metric("Circuitos", int(circuits['n'][0]))
-    col4.metric("Compostos", int(compounds_count['n'][0]))
+    col2.metric("Temporadas",        int(years_covered['n'][0]))
+    col3.metric("Circuitos",         int(circuits['n'][0]))
+    col4.metric("Compostos",         int(compounds_cnt['n'][0]))
 
     st.markdown("---")
 
-    # Degradação média global por ano e composto
     df = query(f"""
         SELECT year, compound, avg_deg_s, avg_stint_laps
         FROM marts.compound_evolution
         WHERE year BETWEEN {year_range[0]} AND {year_range[1]}
-          AND compound IN ({','.join([f"'{c}'" for c in compounds])})
+          AND compound IN ({compounds_sql(compounds)})
         ORDER BY year, compound
     """)
 
@@ -108,17 +115,21 @@ if page == "🏠 Visão Geral":
 elif page == "📉 Degradação por Circuito":
     st.title("📉 Degradação por Circuito")
 
-    circuits_list = query("SELECT DISTINCT event_name FROM marts.tyre_degradation ORDER BY 1")
+    circuits_list    = query("SELECT DISTINCT event_name FROM marts.tyre_degradation ORDER BY 1")
     selected_circuit = st.selectbox("Circuito", circuits_list["event_name"].tolist())
 
     df = query(f"""
-        SELECT year, compound, avg_deg_per_lap_s, avg_pace_s, avg_stint_length, yoy_deg_delta
+        SELECT year, compound, compound_name,
+            avg_deg_per_lap_s, avg_pace_s, avg_stint_length, yoy_deg_delta
         FROM marts.tyre_degradation
-        WHERE event_name = '{selected_circuit}'
-          AND year BETWEEN {year_range[0]} AND {year_range[1]}
-          AND compound IN ({','.join([f"'{c}'" for c in compounds])})
+        WHERE circuit_key = '{selected_key}'
+        AND year BETWEEN {year_range[0]} AND {year_range[1]}
+        AND compound IN ({compounds_sql(compounds)})
         ORDER BY year, compound
     """)
+
+    if "compound_name" in df.columns:
+        df["compound_label"] = df["compound"] + " (" + df["compound_name"] + ")"
 
     if df.empty:
         st.info("Sem dados para o filtro selecionado.")
@@ -129,14 +140,22 @@ elif page == "📉 Degradação por Circuito":
             fig = px.line(
                 df, x="year", y="avg_deg_per_lap_s", color="compound",
                 color_discrete_map=COMPOUND_COLORS, markers=True,
-                title=f"Degradação em {selected_circuit}",
+                custom_data=["compound_name"] if "compound_name" in df.columns else [],
+                title=f"Degradação — {selected_display}",
                 labels={"avg_deg_per_lap_s": "Deg. (s/volta)", "year": "Ano"},
+            )
+            fig.update_traces(
+                hovertemplate=(
+                    "<b>%{fullData.name}</b><br>"
+                    "Ano: %{x}<br>"
+                    "Deg: %{y:.4f}s<br>"
+                    "Composto físico: %{customdata[0]}<extra></extra>"
+                )
             )
             fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig, use_container_width=True)
 
         with col2:
-            # Melhoria year-over-year (negativo = pneu melhorou)
             df_yoy = df.dropna(subset=["yoy_deg_delta"])
             fig2 = px.bar(
                 df_yoy, x="year", y="yoy_deg_delta", color="compound",
@@ -148,28 +167,13 @@ elif page == "📉 Degradação por Circuito":
             fig2.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig2, use_container_width=True)
 
-        # ANTES (quebra com NaN):
-        st.dataframe(df.style.format({
-            "avg_deg_per_lap_s": "{:.4f}",
-            "avg_pace_s": "{:.3f}",
-            "avg_stint_length": "{:.1f}",
-            "yoy_deg_delta": "{:+.4f}",
-        }), use_container_width=True)
-
-        # DEPOIS (robusto com NaN):
-        fmt_cols = {
-            "avg_deg_per_lap_s": "{:.4f}",
-            "avg_pace_s":        "{:.3f}",
-            "avg_stint_length":  "{:.1f}",
-            "yoy_deg_delta":     "{:+.4f}",
-        }
-        # filtra só as colunas que existem no df
-        fmt_cols = {k: v for k, v in fmt_cols.items() if k in df.columns}
-
-        st.dataframe(
-            df.style.format(fmt_cols, na_rep="—"),
-            use_container_width=True,
-        )
+        safe_dataframe(df, {
+            "compound_name":     st.column_config.TextColumn("Composto (Cx)"),   # ← NOVO
+            "avg_deg_per_lap_s": st.column_config.NumberColumn("Deg/volta (s)",   format="%.4f"),
+            "avg_pace_s":        st.column_config.NumberColumn("Ritmo médio (s)", format="%.3f"),
+            "avg_stint_length":  st.column_config.NumberColumn("Stint médio",     format="%.1f"),
+            "yoy_deg_delta":     st.column_config.NumberColumn("Δ YoY (s)",       format="%.4f"),
+        })
 
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "📈 Evolução Anual":
@@ -181,7 +185,7 @@ elif page == "📈 Evolução Anual":
                yoy_deg_improvement, yoy_longevity_delta, races_used
         FROM marts.compound_evolution
         WHERE year BETWEEN {year_range[0]} AND {year_range[1]}
-          AND compound IN ({','.join([f"'{c}'" for c in compounds])})
+          AND compound IN ({compounds_sql(compounds)})
         ORDER BY year, compound
     """)
 
@@ -201,8 +205,8 @@ elif page == "📈 Evolução Anual":
             fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig, use_container_width=True)
 
-            # Highlight de grandes saltos
-            big_improvements = df[df["yoy_deg_improvement"].abs() > 0.02].copy()
+            df_clean = df.dropna(subset=["yoy_deg_improvement"])
+            big_improvements = df_clean[df_clean["yoy_deg_improvement"].abs() > 0.02]
             if not big_improvements.empty:
                 st.markdown("#### 🔍 Grandes mudanças detectadas")
                 for _, row in big_improvements.iterrows():
@@ -230,14 +234,13 @@ elif page == "🗺️ Perfil de Circuitos":
         SELECT circuit_key, event_name, compound,
                avg_deg_s, avg_stint_laps, usage_pct, degradation_tier
         FROM marts.circuit_tyre_profile
-        WHERE compound IN ({','.join([f"'{c}'" for c in compounds])})
+        WHERE compound IN ({compounds_sql(compounds)})
         ORDER BY avg_deg_s DESC
     """)
 
     if df.empty:
         st.info("Sem dados.")
     else:
-        # Pivot para heatmap de degradação por circuito x composto
         pivot = df.pivot_table(
             index="event_name", columns="compound",
             values="avg_deg_s", aggfunc="mean"
@@ -288,7 +291,7 @@ ORDER BY 1,2
         try:
             result = query(sql)
             st.dataframe(result, use_container_width=True)
-            if len(result.columns) >= 2:
+            if len(result.columns) >= 3:
                 try:
                     fig = px.bar(result, x=result.columns[0], y=result.columns[2],
                                  color=result.columns[1])
