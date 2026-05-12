@@ -30,9 +30,24 @@ def get_engine():
 def query(sql: str) -> pd.DataFrame:
     return pd.read_sql(sql, get_engine())
 
+# ── Helper: formata dataframe sem quebrar em NaN ──────────────────────────────
+def safe_dataframe(df: pd.DataFrame, col_config: dict):
+    display = df.copy()
+    for col in col_config:
+        if col in display.columns:
+            display[col] = pd.to_numeric(display[col], errors="coerce")
+    st.dataframe(display, use_container_width=True, column_config=col_config)
+
+# ── Helper: monta cláusula IN para compostos ─────────────────────────────────
+def compounds_sql(lst):
+    return ",".join([f"'{c}'" for c in lst])
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/New_era_pirelli_logo.svg/320px-New_era_pirelli_logo.svg.png", width=160)
+    st.image(
+        "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/New_era_pirelli_logo.svg/320px-New_era_pirelli_logo.svg.png",
+        width=160,
+    )
     st.markdown("## Pirelli Analytics")
     st.markdown("---")
 
@@ -52,18 +67,6 @@ with st.sidebar:
         default=["SOFT", "MEDIUM", "HARD"],
     )
 
-# ── Helper: formata dataframe sem quebrar em NaN ──────────────────────────────
-def safe_dataframe(df: pd.DataFrame, col_config: dict):
-    display = df.copy()
-    for col in col_config:
-        if col in display.columns:
-            display[col] = pd.to_numeric(display[col], errors="coerce")
-    st.dataframe(display, use_container_width=True, column_config=col_config)
-
-# ── Helper: monta cláusula IN para compostos ─────────────────────────────────
-def compounds_sql(lst):
-    return ",".join([f"'{c}'" for c in lst])
-
 # ══════════════════════════════════════════════════════════════════════════════
 if page == "🏠 Visão Geral":
     st.title("🏎️ Pirelli Tyre Analytics — F1 2014–2026")
@@ -71,10 +74,10 @@ if page == "🏠 Visão Geral":
 
     col1, col2, col3, col4 = st.columns(4)
 
-    total_stints   = query("SELECT count(*) as n FROM marts.tyre_degradation")
-    years_covered  = query("SELECT count(distinct year) as n FROM marts.compound_evolution")
-    circuits       = query("SELECT count(distinct circuit_key) as n FROM marts.circuit_tyre_profile")
-    compounds_cnt  = query("SELECT count(distinct compound) as n FROM marts.compound_evolution")
+    total_stints  = query("SELECT count(*) as n FROM marts.tyre_degradation")
+    years_covered = query("SELECT count(distinct year) as n FROM marts.compound_evolution")
+    circuits      = query("SELECT count(distinct circuit_key) as n FROM marts.circuit_tyre_profile")
+    compounds_cnt = query("SELECT count(distinct compound) as n FROM marts.compound_evolution")
 
     col1.metric("Stints analisados", f"{int(total_stints['n'][0]):,}")
     col2.metric("Temporadas",        int(years_covered['n'][0]))
@@ -115,16 +118,27 @@ if page == "🏠 Visão Geral":
 elif page == "📉 Degradação por Circuito":
     st.title("📉 Degradação por Circuito")
 
-    circuits_list    = query("SELECT DISTINCT event_name FROM marts.tyre_degradation ORDER BY 1")
-    selected_circuit = st.selectbox("Circuito", circuits_list["event_name"].tolist())
+    # Busca circuit_key estável + nome mais recente para exibição
+    circuits_df = query("""
+        SELECT circuit_key,
+               max(event_name) as display_name
+        FROM marts.tyre_degradation
+        GROUP BY circuit_key
+        ORDER BY max(event_name)
+    """)
+
+    # dict {nome amigável → circuit_key}
+    circuit_map      = dict(zip(circuits_df["display_name"], circuits_df["circuit_key"]))
+    selected_display = st.selectbox("Circuito", list(circuit_map.keys()))
+    selected_key     = circuit_map[selected_display]
 
     df = query(f"""
         SELECT year, compound, compound_name,
-            avg_deg_per_lap_s, avg_pace_s, avg_stint_length, yoy_deg_delta
+               avg_deg_per_lap_s, avg_pace_s, avg_stint_length, yoy_deg_delta
         FROM marts.tyre_degradation
         WHERE circuit_key = '{selected_key}'
-        AND year BETWEEN {year_range[0]} AND {year_range[1]}
-        AND compound IN ({compounds_sql(compounds)})
+          AND year BETWEEN {year_range[0]} AND {year_range[1]}
+          AND compound IN ({compounds_sql(compounds)})
         ORDER BY year, compound
     """)
 
@@ -160,7 +174,7 @@ elif page == "📉 Degradação por Circuito":
             fig2 = px.bar(
                 df_yoy, x="year", y="yoy_deg_delta", color="compound",
                 color_discrete_map=COMPOUND_COLORS, barmode="group",
-                title="Variação YoY de degradação (negativo = melhoria)",
+                title="Variação YoY (negativo = melhoria)",
                 labels={"yoy_deg_delta": "Δ deg (s/volta)", "year": "Ano"},
             )
             fig2.add_hline(y=0, line_dash="dot", line_color="gray")
@@ -168,7 +182,7 @@ elif page == "📉 Degradação por Circuito":
             st.plotly_chart(fig2, use_container_width=True)
 
         safe_dataframe(df, {
-            "compound_name":     st.column_config.TextColumn("Composto (Cx)"),   # ← NOVO
+            "compound_name":     st.column_config.TextColumn("Composto físico"),
             "avg_deg_per_lap_s": st.column_config.NumberColumn("Deg/volta (s)",   format="%.4f"),
             "avg_pace_s":        st.column_config.NumberColumn("Ritmo médio (s)", format="%.3f"),
             "avg_stint_length":  st.column_config.NumberColumn("Stint médio",     format="%.1f"),
@@ -259,17 +273,21 @@ elif page == "🗺️ Perfil de Circuitos":
         col1, col2 = st.columns(2)
         with col1:
             top5 = df.groupby("event_name")["avg_deg_s"].mean().nlargest(5).reset_index()
-            fig2 = px.bar(top5, x="avg_deg_s", y="event_name", orientation="h",
-                          title="Top 5 circuitos mais agressivos",
-                          color="avg_deg_s", color_continuous_scale="Reds")
+            fig2 = px.bar(
+                top5, x="avg_deg_s", y="event_name", orientation="h",
+                title="Top 5 circuitos mais agressivos",
+                color="avg_deg_s", color_continuous_scale="Reds",
+            )
             fig2.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig2, use_container_width=True)
 
         with col2:
             tier_counts = df["degradation_tier"].value_counts().reset_index()
-            fig3 = px.pie(tier_counts, values="count", names="degradation_tier",
-                          title="Distribuição de circuitos por tier de degradação",
-                          color_discrete_sequence=["#d73027", "#fdae61", "#1a9850"])
+            fig3 = px.pie(
+                tier_counts, values="count", names="degradation_tier",
+                title="Distribuição por tier de degradação",
+                color_discrete_sequence=["#d73027", "#fdae61", "#1a9850"],
+            )
             fig3.update_layout(paper_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig3, use_container_width=True)
 
@@ -281,7 +299,7 @@ elif page == "🔬 Explorador":
     default_sql = """
 SELECT year, compound,
        round(avg(avg_deg_per_lap_s)::numeric,4) as deg_medio,
-       round(avg(avg_stint_length)::numeric,1) as stint_medio
+       round(avg(avg_stint_length)::numeric,1)  as stint_medio
 FROM marts.tyre_degradation
 GROUP BY 1,2
 ORDER BY 1,2
@@ -293,8 +311,12 @@ ORDER BY 1,2
             st.dataframe(result, use_container_width=True)
             if len(result.columns) >= 3:
                 try:
-                    fig = px.bar(result, x=result.columns[0], y=result.columns[2],
-                                 color=result.columns[1])
+                    fig = px.bar(
+                        result,
+                        x=result.columns[0],
+                        y=result.columns[2],
+                        color=result.columns[1],
+                    )
                     fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
                     st.plotly_chart(fig, use_container_width=True)
                 except Exception:

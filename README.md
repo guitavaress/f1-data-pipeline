@@ -1,94 +1,213 @@
-# 🏎️ F1 Data Pipeline
+# 🏎️ F1 Data Pipeline — Pirelli Tyre Analytics
 
-Este projeto é um pipeline de dados simples para coletar, transformar e carregar dados de voltas de corrida da Fórmula 1 usando Airflow, dbt e PostgreSQL. Ele demonstra uma arquitetura de dados em camadas (`raw`, `staging`, `marts`) para garantir a organização e a qualidade dos dados.
+Pipeline de dados de Fórmula 1 que coleta voltas de corrida via **FastF1**, armazena em **PostgreSQL**, transforma com **dbt** e expõe os resultados em um dashboard **Streamlit**. Orquestrado por **Apache Airflow** com **Cosmos**.
 
------
-
-### **Visão Geral da Arquitetura**
-
-O pipeline utiliza a seguinte arquitetura:
-
-  * **Fonte de Dados**: A biblioteca Python `FastF1` é usada para extrair dados brutos de voltas de corrida da F1.
-  * **Ingestão de Dados**: Apache Airflow gerencia a orquestração do pipeline, executando a ingestão dos dados para o banco de dados.
-  * **Armazenamento de Dados**: PostgreSQL armazena os dados em diferentes esquemas, representando cada etapa da transformação.
-  * **Transformação de Dados**: dbt (Data Build Tool) é usado para transformar os dados brutos em modelos prontos para análise, seguindo a arquitetura em camadas (`raw`, `staging`, `marts`).
-  * **Orquestração**: Apache Airflow é responsável por agendar e executar as tarefas de ingestão e transformação.
+O objetivo central é **analisar a evolução e degradação dos compostos Pirelli de 2014 a 2026** — quanto cada composto perde de performance por volta, como isso varia entre circuitos e como a Pirelli evoluiu seus pneus ao longo das temporadas.
 
 -----
 
-### **Estrutura do Projeto**
+## Índice
+
+- [Objetivos](#objetivos)
+- [Stack](#stack)
+- [Arquitetura (Medallion)](#arquitetura-medallion)
+- [Estrutura](#estrutura)
+- [Como Usar](#como-usar)
+  - [1. Pré-requisitos](#1-pré-requisitos)
+  - [2. Subir tudo](#2-subir-tudo)
+  - [3. Acessos](#3-acessos)
+  - [4. Primeira execução](#4-primeira-execução)
+- [DAGs](#dags)
+  - [`f1_pipeline` (incremental, `@daily`)](#f1_pipeline-incremental-daily)
+  - [`f1_historical_backfill` (manual)](#f1_historical_backfill-manual)
+- [Dashboard (Streamlit)](#dashboard-streamlit)
+- [Comandos Úteis](#comandos-úteis)
+- [Contexto de Domínio (F1 / Pirelli)](#contexto-de-domínio-f1--pirelli)
+- [Documentação Adicional](#documentação-adicional)
+
+-----
+
+## Objetivos
+
+- **Degradação por composto × circuito × ano**: medir, em segundos por volta, quanto cada pneu Pirelli perde de pace ao longo de um stint.
+- **Evolução histórica (2014 → hoje)**: identificar anos em que a Pirelli mudou de forma significativa a curva de degradação ou longevidade de cada composto.
+- **Perfil de circuitos**: classificar os GPs por agressividade (low / medium / high deg) usando dados reais de stint, não tabelas pré-fabricadas.
+- **Ingestão idempotente**: nunca reprocessar uma corrida já presente em `raw.fastf1_laps`; o pipeline diário pega apenas o que é novo.
+
+-----
+
+## Stack
+
+| Serviço       | Tecnologia                       | Porta |
+|---------------|----------------------------------|-------|
+| Orquestração  | Apache Airflow 2.8.1 + Cosmos    | 8080  |
+| Banco         | PostgreSQL 15                    | 5432  |
+| Transformação | dbt-postgres 1.7.11              | —     |
+| Dashboard     | Streamlit + Plotly               | 8501  |
+| Ingestão      | FastF1 (Python)                  | —     |
+
+Credenciais locais de desenvolvimento: `airflow / airflow`, banco `f1`.
+
+-----
+
+## Arquitetura (Medallion)
+
+```
+FastF1 API
+    │
+    ▼
+raw.fastf1_laps              ← ingestão bruta (load_fastf1.py)
+    │
+    ▼
+staging.stg_laps             ← limpeza, cast de tipos, filtros de outlier
+staging.stg_tyre_stints      ← agregação por stint de cada piloto
+    │
+    ▼
+marts.tyre_degradation       ← deg. por composto × circuito × ano (incremental)
+marts.compound_evolution     ← evolução histórica Pirelli 2014 → hoje
+marts.circuit_tyre_profile   ← perfil de agressividade por circuito
+```
+
+- Todos os marts são `table`, exceto `tyre_degradation` que é `incremental` com `unique_key = ['year', 'circuit_key', 'compound']`.
+- Tempo sempre em **segundos** (float), nunca timedelta.
+- Compostos sempre em **UPPER**: `SOFT`, `MEDIUM`, `HARD`, `INTERMEDIATE`, `WET`.
+- `compound` = categoria (SOFT/MEDIUM/HARD); `compound_name` = composto físico Pirelli (C1–C5).
+
+-----
+
+## Estrutura
 
 ```
 f1-data-pipeline/
 ├── dags/
-│   ├── fastf1_load.py              # Definição do pipeline do Airflow
-├── f1_transform/                   # Projeto dbt para transformação dos dados
+│   ├── fastf1_load.py            # DAG diária incremental (f1_pipeline)
+│   ├── fastf1_backfill.py        # DAG manual de backfill 2014–2026
+│   └── load_fastf1.py            # Lógica de ingestão FastF1 → raw.fastf1_laps
+├── f1_transform/                 # Projeto dbt
 │   ├── dbt_project.yml
 │   ├── profiles.yml
-│   ├── models/
-│   │   ├── staging/
-│   │   │   └── stg_laps.sql        # Limpeza e preparação dos dados
-│   │   └── marts/
-│   │       └── agg_laps.sql        # Modelo final para análise
 │   ├── macros/
-│   │   └── schema_macros.sql       # Macro para controle dos esquemas
-├── docker-compose.yml              # Configuração dos serviços (Airflow, Postgres)
-├── Dockerfile.airflow              # Define o ambiente do Airflow
+│   │   └── schema_macros.sql     # Remove o prefixo padrão dos schemas do dbt
+│   └── models/
+│       ├── src.yml
+│       ├── staging/
+│       │   ├── stg_laps.sql
+│       │   └── stg_tyre_stints.sql
+│       └── marts/
+│           ├── schema.yml
+│           ├── tyre_degradation.sql      (incremental)
+│           ├── compound_evolution.sql    (table)
+│           └── circuit_tyre_profile.sql  (table)
+├── dashboard/
+│   └── app.py                    # Streamlit — 5 páginas de análise
+├── cache/                        # Cache FastF1 (montado no container)
+├── docker-compose.yml
+├── Dockerfile.airflow
+├── Dockerfile.streamlit
+├── CLAUDE.md                     # Guia de contexto para o Claude Code
 └── README.md
 ```
 
 -----
 
-### **Como Usar**
+## Como Usar
 
-#### **1. Pré-requisitos**
+### 1. Pré-requisitos
 
-Certifique-se de ter o Docker e o Docker Compose instalados em sua máquina.
+Docker e Docker Compose instalados.
 
-#### **2. Configuração do Ambiente**
-
-Clone este repositório e navegue até a pasta do projeto.
+### 2. Subir tudo
 
 ```bash
-git clone <URL_DO_SEU_REPOSITORIO>
+git clone <URL_DO_REPOSITORIO>
 cd f1-data-pipeline
-```
-
-#### **3. Execução dos Serviços**
-
-Inicie os contêineres do Docker:
-
-```bash
 docker-compose up --build
 ```
 
-O contêiner do Airflow iniciará, e você poderá acessar a UI do Airflow em `http://localhost:8080`. Use as credenciais `admin` para o usuário e senha.
+Sobe três serviços: `postgres`, `airflow` e `streamlit`.
 
-#### **4. Verificação**
+### 3. Acessos
 
-No Airflow, a DAG chamada `f1_pipeline` deve estar visível e pronta para ser executada. Dispare a DAG manualmente para iniciar o pipeline.
+| UI         | URL                      | Credenciais     |
+|------------|--------------------------|-----------------|
+| Airflow    | http://localhost:8080    | `admin / admin` |
+| Streamlit  | http://localhost:8501    | —               |
+| PostgreSQL | `localhost:5432`, db `f1`| `airflow / airflow` |
 
-Ao concluir, você pode verificar os esquemas e tabelas no seu banco de dados PostgreSQL usando uma ferramenta como o DBeaver. Você verá as seguintes tabelas criadas:
+### 4. Primeira execução
 
-  * `raw.fastf1_laps`
-  * `staging.stg_laps`
-  * `marts.agg_laps`
+1. No Airflow, ative e dispare a DAG **`f1_historical_backfill`** para popular 2014 → 2026 (rodada manual, sequencial — leva tempo na primeira vez por causa do download do FastF1).
+2. A DAG **`f1_pipeline`** roda diariamente e pega só corridas novas. O dbt **sempre executa** ao final, mesmo sem dados novos, para refletir backfills/reprocessamentos.
+3. Abra o Streamlit em `localhost:8501` para navegar pelo dashboard.
 
 -----
 
-### **Detalhes Técnicos**
+## DAGs
 
-#### **Arquivos de Configuração**
+### `f1_pipeline` (incremental, `@daily`)
 
-  * **`docker-compose.yml`**: Configura os serviços `postgres` e `airflow`, montando os diretórios do projeto para que o Airflow possa acessá-los.
-  * **`f1_transform/dbt_project.yml`**: Define o projeto dbt, as camadas (`staging`, `marts`) e o materializado das tabelas.
-  * **`f1_transform/profiles.yml`**: Armazena as credenciais de conexão com o banco de dados. É um arquivo de configuração sensível.
-  * **`f1_transform/macros/schema_macros.sql`**: Contém uma macro personalizada que garante que os esquemas (`staging`, `marts`) sejam criados sem o prefixo padrão do dbt, evitando problemas de concatenação.
+```
+create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosmos)
+```
 
-#### **DAG `fastf1_load.py`**
+- `check_new_data` consulta `raw.fastf1_laps` para descobrir rounds já carregados.
+- `ingest_fastf1_data` pula corridas já presentes e qualquer corrida futura.
+- `dbt_transform` é um `DbtTaskGroup` do Cosmos que materializa staging + marts.
 
-A DAG é dividida em três tarefas principais:
+### `f1_historical_backfill` (manual)
 
-1.  **`create_schemas`**: Cria os esquemas `raw`, `staging` e `marts` no PostgreSQL antes de qualquer operação.
-2.  **`ingest_data`**: Coleta os dados de uma corrida da F1 e os carrega para a tabela `raw.fastf1_laps`.
-3.  **`transform_data`**: Uma tarefa do Cosmos que executa o projeto dbt, transformando os dados de `raw` para `staging` e depois para `marts`.
+- Processa **anos 2014 → 2026 sequencialmente** (chain de tasks).
+- Sequencial por design: evita corrupção do cache do FastF1 sob concorrência.
+
+-----
+
+## Dashboard (Streamlit)
+
+Cinco páginas:
+
+1. **🏠 Visão Geral** — KPIs gerais + degradação média global por composto e longevidade dos stints.
+2. **📉 Degradação por Circuito** — curva de degradação por composto em um GP específico + variação YoY.
+3. **📈 Evolução Anual** — comparativo 2014 → hoje, com detecção automática de "grandes mudanças" entre temporadas.
+4. **🗺️ Perfil de Circuitos** — heatmap circuito × composto, top-5 mais agressivos, distribuição por tier.
+5. **🔬 Explorador** — editor de SQL livre contra o schema `marts`.
+
+Cores dos compostos são centralizadas em `COMPOUND_COLORS` (`dashboard/app.py`) e seguem o padrão Pirelli oficial.
+
+-----
+
+## Comandos Úteis
+
+```bash
+# Só o banco (útil para desenvolver dbt localmente)
+docker-compose up postgres
+
+# Rodar dbt manualmente dentro do container Airflow
+docker exec -it <airflow_container> bash
+dbt run    --project-dir /opt/airflow/f1_transform --profiles-dir /opt/airflow/f1_transform
+dbt test   --project-dir /opt/airflow/f1_transform --profiles-dir /opt/airflow/f1_transform
+
+# Rodar um modelo específico
+dbt run --select tyre_degradation
+
+# Logs do Airflow em tempo real
+docker-compose logs -f airflow
+```
+
+-----
+
+## Contexto de Domínio (F1 / Pirelli)
+
+- **Stint**: sequência de voltas no mesmo conjunto de pneus.
+- **Deg per lap (s)**: quanto o pneu perde de pace por volta — métrica central do projeto.
+- **Compound**: categoria de dureza (SOFT = mais rápido/menos durável; HARD = oposto).
+- **Compound name (C1–C5)**: composto físico específico que a Pirelli traz para cada GP.
+- **TyreLife**: número de voltas que aquele set já rodou até aquela volta.
+- **FreshTyre**: se o set era novo ao entrar na pista.
+- A **era moderna** de estratégia de pneus começa em 2018 — alguns marts filtram a partir desse ano (ver `circuit_tyre_profile.sql`).
+- Dados disponíveis via FastF1: **temporadas 2014 → atual**.
+
+-----
+
+## Documentação Adicional
+
+Para detalhes operacionais, convenções de schema/nomenclatura, e o que **não** alterar sem discussão, ver [`CLAUDE.md`](./CLAUDE.md).

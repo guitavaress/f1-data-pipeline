@@ -7,12 +7,11 @@ fastf1.Cache.enable_cache("/opt/airflow/cache")
 DB_URI = "postgresql+psycopg2://airflow:airflow@postgres:5432/f1"
 engine = create_engine(DB_URI)
 
-# Colunas adicionadas: compound, tyrelife, stint, freshtyre
 LAP_COLUMNS = [
     "Driver", "DriverNumber", "Team",
     "LapTime", "LapNumber", "TrackStatus",
     "Compound",      # SOFT / MEDIUM / HARD
-    "CompoundName",  # ← C1 / C2 / C3 / C4 / C5 (quando disponível)
+    "CompoundName",  # C1 / C2 / C3 / C4 / C5 (quando disponível)
     "TyreLife", "Stint", "FreshTyre",
     "Sector1Time", "Sector2Time", "Sector3Time",
     "SpeedI1", "SpeedI2", "SpeedFL",
@@ -20,14 +19,14 @@ LAP_COLUMNS = [
 ]
 
 def get_processed_rounds(year: int) -> set:
-    query = text("""
+    q = text("""
         SELECT DISTINCT round_number
         FROM raw.fastf1_laps
         WHERE year = :year
     """)
     try:
         with engine.connect() as conn:
-            result = conn.execute(query, {"year": year})
+            result = conn.execute(q, {"year": year})
             return {row[0] for row in result}
     except Exception:
         return set()
@@ -41,7 +40,6 @@ def load_session(year: int, round_number: int, event_name: str):
         print(f"  Sem voltas: {event_name}")
         return
 
-    # Pega apenas as colunas que existem (FastF1 pode variar por ano)
     available = [c for c in LAP_COLUMNS if c in laps.columns]
     df = laps[available].copy()
 
@@ -58,6 +56,7 @@ def load_session(year: int, round_number: int, event_name: str):
     df["year"]         = year
     df["circuit_key"]  = session.event.get("OfficialEventName", event_name)
 
+    # Normaliza compound (uppercase antes do fallback)
     if "compound" in df.columns:
         df["compound"] = df["compound"].str.upper().fillna("UNKNOWN")
 
@@ -67,9 +66,13 @@ def load_session(year: int, round_number: int, event_name: str):
     else:
         df["compoundname"] = "UNKNOWN"
 
+    # Fallback para anos sem CompoundName confiável
     compound_fallback = {
-        "SOFT": "C_SOFT", "MEDIUM": "C_MEDIUM", "HARD": "C_HARD",
-        "INTERMEDIATE": "INTER", "WET": "WET"
+        "SOFT":         "C_SOFT",
+        "MEDIUM":       "C_MEDIUM",
+        "HARD":         "C_HARD",
+        "INTERMEDIATE": "INTER",
+        "WET":          "WET",
     }
     mask = df["compoundname"] == "UNKNOWN"
     df.loc[mask, "compoundname"] = (
@@ -80,14 +83,23 @@ def load_session(year: int, round_number: int, event_name: str):
               if_exists="append", index=False)
     print(f"  ✓ {len(df)} voltas — {event_name} {year} (round {round_number})")
 
-def main(year: int = 2026):
+def main(year: int = None):
+    # Usa o ano atual se não for passado explicitamente
+    if year is None:
+        year = datetime.now().year
+
     processed = get_processed_rounds(year)
     schedule  = fastf1.get_event_schedule(year)
     races     = schedule[schedule['EventFormat'] != 'testing']
     new_races = races[~races['RoundNumber'].isin(processed)]
 
+    print(f"\nAno: {year}")
+    print(f"Rounds já processados: {sorted(processed)}")
+    print(f"Corridas novas a processar: {len(new_races)}")
+
     for _, race in new_races.iterrows():
         if pd.Timestamp.now() < race['EventDate']:
+            print(f"  ⏭ Pulando {race['EventName']} — ainda não aconteceu")
             continue
         try:
             load_session(year, race['RoundNumber'], race['EventName'])
