@@ -6,7 +6,10 @@ cleaned as (
         year,
         round_number,
         event_name,
-        circuit_key,
+        -- circuit_key vindo do raw é OfficialEventName e muda por ano/patrocinador.
+        -- event_name ("British Grand Prix", "Italian Grand Prix") é estável e captura
+        -- a granularidade certa (track-level, incluindo casos como Sakhir vs Bahrain).
+        event_name as circuit_key,
         driver,
         drivernumber,
         team,
