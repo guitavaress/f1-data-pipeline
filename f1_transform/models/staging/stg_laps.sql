@@ -37,7 +37,12 @@ cleaned as (
     from source
     where laptime is not null
       and laptime > 0
-      and laptime < 300   -- remove outliers absurdos (safety car, red flag etc)
+      and laptime < 300
       and compound not in ('UNKNOWN', '')
+      -- TrackStatus = '1' significa pista verde (sem SC/VSC/yellow/red).
+      -- Códigos FastF1: 1=clear, 2=yellow, 4=SC, 5=red, 6=VSC, 7=VSC ending.
+      -- Para análise de degradação só voltas em verde fazem sentido — SC/VSC
+      -- distorcem laptime sem relação com o pneu.
+      and trackstatus = '1'
 )
 select * from cleaned
