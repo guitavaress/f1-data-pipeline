@@ -32,6 +32,14 @@ cleaned as (
         trackstatus,
         pitintime                                  as pit_in_s,
         pitouttime                                 as pit_out_s,
+
+        -- weather (alinhado por tempo na ingestão; NULL em rounds antigos
+        -- ingeridos antes desta versão — re-ingestão necessária para popular)
+        airtemp                                    as air_temp_c,
+        tracktemp                                  as track_temp_c,
+        humidity                                   as humidity_pct,
+        rainfall                                   as has_rain,
+
         fetch_time
 
     from source
