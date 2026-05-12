@@ -25,5 +25,7 @@ models:
         +unique_key: ['year', 'circuit_key', 'compound']
       compound_evolution:
         +materialized: table
+      compound_physical_evolution:
+        +materialized: table
       circuit_tyre_profile:
         +materialized: table
