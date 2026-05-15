@@ -16,7 +16,26 @@ LAP_COLUMNS = [
     "Sector1Time", "Sector2Time", "Sector3Time",
     "SpeedI1", "SpeedI2", "SpeedFL",
     "PitOutTime", "PitInTime",
+    # Weather (alinhado por tempo via laps.get_weather_data())
+    "AirTemp", "TrackTemp", "Humidity", "Rainfall",
 ]
+
+
+def ensure_weather_columns():
+    """Garante que raw.fastf1_laps tem as colunas de weather.
+    Idempotente: ADD COLUMN IF NOT EXISTS. Pulado silenciosamente se a
+    tabela ainda não existe (primeira ingestão cria via pandas.to_sql)."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                ALTER TABLE IF EXISTS raw.fastf1_laps
+                    ADD COLUMN IF NOT EXISTS airtemp   double precision,
+                    ADD COLUMN IF NOT EXISTS tracktemp double precision,
+                    ADD COLUMN IF NOT EXISTS humidity  double precision,
+                    ADD COLUMN IF NOT EXISTS rainfall  boolean;
+            """))
+    except Exception as e:
+        print(f"  ⚠ ensure_weather_columns: {e}")
 
 def get_processed_rounds(year: int) -> set:
     q = text("""
@@ -33,12 +52,22 @@ def get_processed_rounds(year: int) -> set:
 
 def load_session(year: int, round_number: int, event_name: str):
     session = fastf1.get_session(year, round_number, 'R')
-    session.load(laps=True, telemetry=False, weather=False, messages=False)
+    session.load(laps=True, telemetry=False, weather=True, messages=False)
     laps = session.laps
 
     if laps is None or len(laps) == 0:
         print(f"  Sem voltas: {event_name}")
         return
+
+    # Injeta weather alinhado por tempo no DataFrame de laps (cada volta recebe
+    # a leitura de TrackTemp/AirTemp/etc do momento em que foi rodada).
+    try:
+        weather = laps.get_weather_data()
+        for col in ("AirTemp", "TrackTemp", "Humidity", "Rainfall"):
+            if col in weather.columns:
+                laps[col] = weather[col].values
+    except Exception as e:
+        print(f"  ⚠ Sem weather data ({event_name} {year}): {e}")
 
     available = [c for c in LAP_COLUMNS if c in laps.columns]
     df = laps[available].copy()
@@ -87,6 +116,9 @@ def main(year: int = None):
     # Usa o ano atual se não for passado explicitamente
     if year is None:
         year = datetime.now().year
+
+    # Garante schema de weather antes do append (idempotente)
+    ensure_weather_columns()
 
     processed = get_processed_rounds(year)
     schedule  = fastf1.get_event_schedule(year)

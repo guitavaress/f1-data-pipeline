@@ -25,7 +25,7 @@ profile_config = ProfileConfig(
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 @task
 def create_schemas():
-    """Cria os esquemas necessários no banco se não existirem."""
+    """Cria os esquemas necessários e garante migração de schema do raw."""
     engine = create_engine(DB_URI)
     with engine.begin() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw;"))
@@ -33,6 +33,12 @@ def create_schemas():
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS marts;"))
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS dbt_airflow;"))
     print("Esquemas criados ou já existentes.")
+
+    # Migração idempotente: garante colunas de weather em raw.fastf1_laps.
+    # Isso permite que dbt rode contra raw.fastf1_laps sem precisar esperar
+    # a próxima ingestão (colunas ficam NULL para rounds antigos).
+    from load_fastf1 import ensure_weather_columns
+    ensure_weather_columns()
 
 
 @task

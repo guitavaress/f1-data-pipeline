@@ -20,15 +20,17 @@ stints as (
         min(laptime_s)              as best_lap_s,
         avg(laptime_s)              as avg_lap_s,
 
-        -- degradação: diferença de tempo entre a 1ª e a última volta do stint
+        -- range bruto entre 1ª e última volta (mantido só para referência/debug)
         max(laptime_s) - min(laptime_s) as raw_degradation_s,
 
-        -- taxa de degradação por volta
-        case
-            when max(tyre_life) > 1
-            then (max(laptime_s) - min(laptime_s)) / nullif(max(tyre_life) - 1, 0)
-            else 0
-        end as deg_per_lap_s
+        -- DEGRADAÇÃO POR VOLTA: coeficiente angular da regressão linear
+        -- laptime ~ tyre_life dentro do stint. Robusto a outliers (uma volta
+        -- com tráfego ou erro do piloto não vira "degradação"). NULL quando há
+        -- < 2 voltas ou nenhuma variação de tyre_life — interpretação honesta.
+        regr_slope(laptime_s, tyre_life) as deg_per_lap_s,
+
+        -- qualidade do ajuste linear (0–1). R² baixo = stint errático.
+        regr_r2(laptime_s, tyre_life)    as deg_fit_r2
 
     from laps
     where tyre_life is not null

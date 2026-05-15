@@ -10,8 +10,12 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
-target-path: "target"
-clean-targets: ["target", "dbt_packages"]
+# target-path e log-path fora do bind mount: evitam PermissionError quando
+# o container (uid airflow=50000) tenta escrever em paths que têm owner
+# do host (gui_t). /tmp é local ao container, sem conflito de permissão.
+target-path: "/tmp/dbt-target"
+log-path: "/tmp/dbt-logs"
+clean-targets: ["/tmp/dbt-target", "dbt_packages"]
 
 models:
   f1_transform:
@@ -24,6 +28,8 @@ models:
         +materialized: incremental
         +unique_key: ['year', 'circuit_key', 'compound']
       compound_evolution:
+        +materialized: table
+      compound_physical_evolution:
         +materialized: table
       circuit_tyre_profile:
         +materialized: table

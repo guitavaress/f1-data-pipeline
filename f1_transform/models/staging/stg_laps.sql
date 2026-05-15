@@ -6,7 +6,10 @@ cleaned as (
         year,
         round_number,
         event_name,
-        circuit_key,
+        -- circuit_key vindo do raw é OfficialEventName e muda por ano/patrocinador.
+        -- event_name ("British Grand Prix", "Italian Grand Prix") é estável e captura
+        -- a granularidade certa (track-level, incluindo casos como Sakhir vs Bahrain).
+        event_name as circuit_key,
         driver,
         drivernumber,
         team,
@@ -29,12 +32,25 @@ cleaned as (
         trackstatus,
         pitintime                                  as pit_in_s,
         pitouttime                                 as pit_out_s,
+
+        -- weather (alinhado por tempo na ingestão; NULL em rounds antigos
+        -- ingeridos antes desta versão — re-ingestão necessária para popular)
+        airtemp                                    as air_temp_c,
+        tracktemp                                  as track_temp_c,
+        humidity                                   as humidity_pct,
+        rainfall                                   as has_rain,
+
         fetch_time
 
     from source
     where laptime is not null
       and laptime > 0
-      and laptime < 300   -- remove outliers absurdos (safety car, red flag etc)
+      and laptime < 300
       and compound not in ('UNKNOWN', '')
+      -- TrackStatus = '1' significa pista verde (sem SC/VSC/yellow/red).
+      -- Códigos FastF1: 1=clear, 2=yellow, 4=SC, 5=red, 6=VSC, 7=VSC ending.
+      -- Para análise de degradação só voltas em verde fazem sentido — SC/VSC
+      -- distorcem laptime sem relação com o pneu.
+      and trackstatus = '1'
 )
 select * from cleaned

@@ -9,10 +9,25 @@ models:
         description: "Diferença de degradação vs ano anterior (negativo = melhoria)"
 
   - name: compound_evolution
-    description: "Evolução dos compostos Pirelli de 2014 a hoje"
+    description: >
+      Evolução por categoria SOFT/MEDIUM/HARD (todos os anos).
+      ATENÇÃO: nomenclatura mudou em 2019 — use compound_physical_evolution
+      para comparações físicas honestas. Coluna `era` distingue 'classic'/'modern'.
     columns:
+      - name: era
+        description: "'classic' (≤2017) ou 'modern' (≥2018)"
       - name: yoy_deg_improvement
-        description: "Melhoria de degradação vs ano anterior"
+        description: "Melhoria de degradação vs ano anterior (interpretar dentro da mesma era)"
+
+  - name: compound_physical_evolution
+    description: >
+      Evolução do composto físico Pirelli (C1–C5), 2018+. Compara C3 com C3
+      entre anos — a visão correta para medir evolução real do produto Pirelli.
+    columns:
+      - name: compound_name
+        description: "Composto físico: C1, C2, C3, C4 ou C5"
+      - name: yoy_deg_improvement
+        description: "Melhoria de degradação no mesmo composto físico vs ano anterior"
 
   - name: circuit_tyre_profile
     description: "Perfil de agressividade de cada circuito com os pneus"
