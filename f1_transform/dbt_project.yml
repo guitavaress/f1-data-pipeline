@@ -11,6 +11,10 @@ macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
 target-path: "target"
+# log-path fora do bind mount: evita PermissionError quando o container
+# (uid airflow=50000) tenta escrever em f1_transform/logs/ que tem owner
+# do host (gui_t). /tmp é local ao container, sem conflito de permissão.
+log-path: "/tmp/dbt-logs"
 clean-targets: ["target", "dbt_packages"]
 
 models:
