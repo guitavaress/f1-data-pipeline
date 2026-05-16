@@ -173,8 +173,10 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 - `CURRENT_YEAR` é derivado de `datetime.now().year` — sem hardcode
 
 ### `f1_historical_backfill` (trigger manual)
-- Processa anos 2014–2026 **sequencialmente** (chain de tasks)
+- Processa anos **2018–2026 sequencialmente** (chain de tasks)
+- Primeira task `create_schemas` (idempotente) replica o setup do `f1_pipeline` — backfill funciona como **primeira** DAG num ambiente limpo (sem isso, todas as ingestões falham silenciosamente com `schema "raw" does not exist`)
 - Sequencial por design: evita corrupção do cache do FastF1
+- **2014–2017 não estão disponíveis** pelo FastF1 Live Timing API — `session.load(laps=True)` falha com `DataNotLoadedError` em todas as corridas. Faixa do backfill atualizada pra refletir essa realidade
 
 ---
 
@@ -202,4 +204,4 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 - **TrackStatus = '1'**: pista verde. Outros códigos FastF1: 2=yellow, 4=SC, 5=red, 6=VSC, 7=VSC ending — todos filtrados em staging
 - **Weather por volta**: cada lap tem leituras de AirTemp/TrackTemp/Humidity/Rainfall do momento em que foi rodada (alinhamento por tempo)
 - Era moderna de estratégia: a partir de 2018 (filtro em `circuit_tyre_profile.sql` e `compound_physical_evolution.sql`)
-- Dados disponíveis via FastF1: temporadas 2014–atual
+- Dados disponíveis via FastF1: **timing detalhado a partir de 2018** (Live Timing API). 2014–2017 retornam `DataNotLoadedError` mesmo com cache populado

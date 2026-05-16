@@ -172,8 +172,10 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 
 ### `f1_historical_backfill` (manual)
 
-- Processa **anos 2014 → 2026 sequencialmente** (chain de tasks).
+- Processa **anos 2018 → 2026 sequencialmente** (chain de tasks).
 - Sequencial por design: evita corrupção do cache do FastF1 sob concorrência.
+- Primeira task é `create_schemas` (idempotente) — backfill funciona mesmo se for a primeira DAG a rodar num ambiente novo.
+- 2014–2017 **não** são processados: o FastF1 Live Timing API só serve laps detalhados a partir de 2018 — sessões anteriores retornam `DataNotLoadedError` em todas as corridas.
 
 -----
 
@@ -221,7 +223,7 @@ docker-compose logs -f airflow
 - **TyreLife**: número de voltas que aquele set já rodou até aquela volta.
 - **FreshTyre**: se o set era novo ao entrar na pista.
 - A **era moderna** de estratégia de pneus começa em 2018 — alguns marts filtram a partir desse ano (ver `circuit_tyre_profile.sql`).
-- Dados disponíveis via FastF1: **temporadas 2014 → atual**.
+- Dados disponíveis via FastF1: **timing detalhado a partir de 2018** (Live Timing API). Anos anteriores existem no cache mas retornam `DataNotLoadedError` ao tentar carregar laps.
 
 -----
 

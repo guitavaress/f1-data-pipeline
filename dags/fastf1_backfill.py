@@ -46,10 +46,15 @@ def f1_historical_backfill():
     """
     Execução manual. Processa um ano por vez (sequencial) para
     evitar corrupção do cache do FastF1.
+
+    Range inicia em 2018: o FastF1 só serve laps detalhados (timing,
+    composto, tyre life) a partir de 2018, quando a F1 abriu o Live
+    Timing. Tentar 2014–2017 falha com DataNotLoadedError em todas
+    as corridas.
     """
     setup = create_schemas()
 
-    years = list(range(2014, 2027))  # 2014 → 2026
+    years = list(range(2018, 2027))  # 2018 → 2026
 
     # Cria chain sequencial: 2014 → 2015 → 2016 → ... → 2026
     tasks = [
