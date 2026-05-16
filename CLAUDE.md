@@ -12,13 +12,13 @@ Pipeline de dados de Fórmula 1 que coleta voltas de corrida via **FastF1**, arm
 
 ## Stack e Serviços
 
-| Serviço     | Tecnologia                        | Porta  |
-|-------------|-----------------------------------|--------|
-| Orquestração | Apache Airflow 2.8.1 + Cosmos    | 8080   |
-| Banco        | PostgreSQL 15                    | 5432   |
-| Transformação| dbt-postgres 1.7.11              | —      |
-| Dashboard    | Streamlit + Plotly               | 8501   |
-| Ingestão     | FastF1 (Python)                  | —      |
+| Serviço     | Tecnologia                          | Porta  |
+|-------------|-------------------------------------|--------|
+| Orquestração | Apache Airflow 2.8.1 + Cosmos      | 8080   |
+| Banco        | PostgreSQL 15                      | 5432   |
+| Transformação| dbt-postgres 1.7.11                | —      |
+| Dashboard    | Next.js 14 (App Router) + node-pg  | 8501   |
+| Ingestão     | FastF1 (Python)                    | —      |
 
 Credenciais locais (desenvolvimento): `airflow / airflow`, banco `f1`.
 
@@ -74,18 +74,21 @@ f1-data-pipeline/
 │           ├── compound_physical_evolution.sql (table — C1–C5, 2018+)
 │           ├── circuit_tyre_profile.sql        (table)
 │           └── tyre_weather_profile.sql        (table — deg × temp bucket)
-├── dashboard/                  # Streamlit multi-page nativo
-│   ├── Home.py                 # Entry point — Visão Geral
-│   ├── pages/                  # Cada arquivo = uma página
-│   ├── lib/                    # db, theme, components compartilhados
-│   │   ├── db.py               # get_engine, query, compounds_sql
-│   │   ├── theme.py            # COMPOUND_COLORS, PHYSICAL_COMPOUND_COLORS,
-│   │   │                       # PLOTLY_TEMPLATE, inject_fonts
-│   │   └── components.py       # filter_sidebar, kpi_card, safe_dataframe, empty_state
-│   └── .streamlit/config.toml  # Tema dark F1
+├── dashboard-next/             # Next.js 14 (App Router) — substitui Streamlit
+│   ├── package.json            # next, react, pg
+│   ├── lib/db.js               # pool node-pg + compoundsSql, sqlString
+│   ├── design/                 # do handoff Claude Design
+│   │   ├── styles.css          # tokens OKLCH + grid
+│   │   ├── lib/charts.jsx      # SVG primitives (LineChart, Heatmap, Scatter, …)
+│   │   └── components/shell.jsx # Sidebar, Topbar, Card, KPI, …
+│   └── app/
+│       ├── layout.jsx          # shell server-side
+│       ├── page.jsx            # Overview (/)
+│       ├── circuit/, report/, circuits/, weather/, explorer/  # outras páginas
+│       └── api/<page>/route.js # 1 endpoint por página, com revalidate=300
 ├── docker-compose.yml
 ├── Dockerfile.airflow
-├── Dockerfile.streamlit
+├── Dockerfile.next             # multi-stage Node 20 → standalone
 └── CLAUDE.md                   # este arquivo
 ```
 
@@ -102,7 +105,8 @@ f1-data-pipeline/
 - `circuit_key` em staging é derivado de `event_name` (estável por temporada/patrocinador), **não** de `OfficialEventName` do raw
 
 ### Python / Airflow
-- Python **3.10** no container Airflow, **3.11** no Streamlit, **3.13t** local (`.tool-versions`)
+- Python **3.10** no container Airflow, **3.13t** local (`.tool-versions`)
+- Dashboard usa **Node 20** (não Python) — ver seção "Dashboard (Next.js 14)" abaixo
 - Cache do FastF1 em `/opt/airflow/cache` (mapeado via volume Docker)
 - `load_fastf1.py` vive em `dags/` para ser importado pelas DAGs via `from load_fastf1 import ...`
 - `get_processed_rounds(year)` consulta `raw.fastf1_laps` para garantir idempotência — não ingerir round já existente
@@ -127,16 +131,15 @@ f1-data-pipeline/
 - `compound_evolution` tem coluna `era` (`'classic'` ≤2017 / `'modern'` ≥2018) — comparações entre eras são apenas categóricas, não físicas
 - Não usar `{{ target.schema }}` diretamente — sempre via macro ou `{{ ref() }}`/`{{ source() }}`
 
-### Dashboard (Streamlit)
-- Multi-page nativo: `Home.py` é o entry point, demais páginas em `pages/` (a numeração `1_..._.py`, `2_..._.py` controla a ordem no menu lateral)
-- **Toda página importa de `lib/`**: `from lib.db import query, compounds_sql`, `from lib.theme import PLOTLY_TEMPLATE, ...`, `from lib.components import filter_sidebar, ...`. Não instanciar `sqlalchemy.create_engine` em página
-- Cores: `COMPOUND_COLORS` (categórico Pirelli) e `PHYSICAL_COMPOUND_COLORS` (C1–C5) — ambos em `lib/theme.py`. Cor hex literal em página é refactor candidato
-- Plotly layout:
-  - Sem overrides: `fig.update_layout(**PLOTLY_TEMPLATE)` direto
-  - **Com override de `xaxis`/`yaxis`/`font`**: usar `plotly_layout(**overrides)` do `lib/theme.py`. Espalhar `**PLOTLY_TEMPLATE` E passar `xaxis=...` na mesma chamada levanta `TypeError: multiple values for keyword argument 'xaxis'` — esse helper faz deep merge dos sub-dicts e evita o conflito
-- `@st.cache_data(ttl=300)` em todas as queries ao banco (já configurado em `lib.db.query`)
-- Filtros: `filter_sidebar('global')` ou `filter_sidebar('by_circuit')` — domínio puxado do banco para evitar combinações vazias
-- Página "🔬 Explorador" permite SQL livre contra o schema `marts`
+### Dashboard (Next.js 14 — `dashboard-next/`)
+- App Router. Página de URL `/` é Overview, demais são `app/<rota>/page.jsx`. Documentação completa em [`dashboard-next/README.md`](dashboard-next/README.md)
+- **Toda página/route importa de `lib/db.js` e `design/`**: `import { query, compoundsSql } from "@/lib/db"`, `import { LineChart, COMPOUND_COLOR } from "@/design/lib/charts"`, `import { Card, KPI } from "@/design/components/shell"`. Não instanciar `Pool` direto em rota
+- Cores e tokens vivem em `design/styles.css` como CSS vars (`--c-soft`, `--c1`..`--c5`, `--hot`, `--cool`, etc.) e em `COMPOUND_COLOR` exportado de `design/lib/charts.jsx`. Hex literal em página é refactor candidate
+- Charts são SVG puro escritos à mão (`design/lib/charts.jsx`) — sem recharts/plotly. Contrato dos componentes é estável (LineChart espera `{series: [{key, label, color, points: [{x,y}]}]}`, etc.). Estender ali se precisar de chart novo
+- node-pg retorna `bigint` (oid 20) e `numeric` (oid 1700) como string por padrão. `lib/db.js` configura `types.setTypeParser` pra converter pra Number — sem isso `count(*)` quebra `.toFixed()` nos componentes
+- **Cada rota declara `export const revalidate = 300;`** (5 min) — paridade com `@st.cache_data(ttl=300)` do Streamlit antigo. Exceto `/api/explorer` (POST, sem cache)
+- SQL Explorer: guard server-side em `app/api/explorer/route.js` que barra `;` adicional, comandos não-SELECT e keywords destrutivas. **Não substitui** um role read-only no Postgres — colocar isso em produção exige criar `dashboard_ro` com `GRANT SELECT` apenas
+- Páginas client (`"use client"`) usam `useState` + `fetch` pros endpoints. Server Components (default) ficam pro layout e dados que não dependem de interação
 
 ---
 
