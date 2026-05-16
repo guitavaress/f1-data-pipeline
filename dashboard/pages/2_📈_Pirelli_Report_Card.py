@@ -17,6 +17,7 @@ from lib.theme import (
     PHYSICAL_COMPOUND_COLORS,
     PLOTLY_TEMPLATE,
     inject_fonts,
+    plotly_layout,
 )
 
 st.set_page_config(page_title="Pirelli Report Card", page_icon="📈", layout="wide")
@@ -197,13 +198,12 @@ for col, comp in zip(cols, compounds_order):
             marker={"size": 5}, showlegend=False,
             hovertemplate="<b>%{x}</b><br>deg: %{y:.4f}s<extra></extra>",
         ))
-        fig.update_layout(
-            **PLOTLY_TEMPLATE,
+        fig.update_layout(**plotly_layout(
             margin={"l": 0, "r": 0, "t": 10, "b": 0},
             height=80,
             xaxis={"visible": False},
             yaxis={"visible": False},
-        )
+        ))
         st.plotly_chart(fig, use_container_width=True,
                         key=f"spark_deg_{comp}",
                         config={"displayModeBar": False})
@@ -216,13 +216,12 @@ for col, comp in zip(cols, compounds_order):
             marker={"size": 4}, showlegend=False,
             hovertemplate="<b>%{x}</b><br>%{y:.1f} voltas<extra></extra>",
         ))
-        fig2.update_layout(
-            **PLOTLY_TEMPLATE,
+        fig2.update_layout(**plotly_layout(
             margin={"l": 0, "r": 0, "t": 4, "b": 0},
             height=50,
             xaxis={"visible": False},
             yaxis={"visible": False},
-        )
+        ))
         st.plotly_chart(fig2, use_container_width=True,
                         key=f"spark_long_{comp}",
                         config={"displayModeBar": False})

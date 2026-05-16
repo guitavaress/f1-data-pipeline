@@ -70,3 +70,27 @@ GOOGLE_FONTS_HTML = """
 def inject_fonts():
     import streamlit as st
     st.markdown(GOOGLE_FONTS_HTML, unsafe_allow_html=True)
+
+
+def plotly_layout(**overrides) -> dict:
+    """Mescla PLOTLY_TEMPLATE com overrides preservando sub-dicts.
+
+    Use quando precisar customizar `xaxis`, `yaxis`, `font` etc — passar
+    `**PLOTLY_TEMPLATE` E o mesmo kwarg diretamente em `update_layout()`
+    levanta TypeError ('multiple values for keyword argument'). Este helper
+    resolve isso fazendo deep merge dos dicts internos.
+
+    Exemplo:
+        fig.update_layout(**plotly_layout(
+            xaxis={"visible": False},  # vira merge com PLOTLY_TEMPLATE.xaxis
+            height=80,
+        ))
+    """
+    merged = {k: dict(v) if isinstance(v, dict) else v
+              for k, v in PLOTLY_TEMPLATE.items()}
+    for k, v in overrides.items():
+        if isinstance(merged.get(k), dict) and isinstance(v, dict):
+            merged[k] = {**merged[k], **v}
+        else:
+            merged[k] = v
+    return merged

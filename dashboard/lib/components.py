@@ -48,10 +48,12 @@ def _global_filters() -> dict:
     y_min = int(bounds["y_min"][0])
     y_max = int(bounds["y_max"][0])
 
+    # GROUP BY (em vez de DISTINCT) permite ORDER BY com expressão fora do SELECT
     compounds_available = query("""
-        SELECT DISTINCT compound
+        SELECT compound
         FROM marts.compound_evolution
         WHERE compound IN ('SOFT','MEDIUM','HARD')
+        GROUP BY compound
         ORDER BY CASE compound WHEN 'SOFT' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END
     """)["compound"].tolist()
 

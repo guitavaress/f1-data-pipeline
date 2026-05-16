@@ -40,7 +40,10 @@ if df.empty:
     st.stop()
 
 if "compound_name" in df.columns:
-    df["compound_label"] = df["compound"] + " (" + df["compound_name"] + ")"
+    # cast pra str + fillna evita TypeError quando compound_name é NULL
+    # (rounds fora da seed Pirelli — anos antes de 2023 / depois de 2024)
+    cn = df["compound_name"].fillna("?").astype(str)
+    df["compound_label"] = df["compound"].astype(str) + " (" + cn + ")"
 
 col1, col2 = st.columns(2)
 
