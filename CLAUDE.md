@@ -60,6 +60,8 @@ f1-data-pipeline/
 │   ├── profiles.yml            # ⚠️ credenciais — não versionar secrets reais
 │   ├── macros/
 │   │   └── schema_macros.sql   # Evita prefixo padrão do dbt nos schemas
+│   ├── seeds/
+│   │   └── pirelli_compound_allocations.csv  # (year, round) → C1-C5
 │   └── models/
 │       ├── src.yml             # Declaração da source raw.fastf1_laps
 │       ├── staging/
@@ -108,7 +110,8 @@ f1-data-pipeline/
 - **Weather**: `AirTemp/TrackTemp/Humidity/Rainfall` são alinhados por tempo via `laps.get_weather_data()` e injetados em cada volta
 - `ensure_weather_columns()` adiciona idempotentemente as colunas de weather em `raw.fastf1_laps` — chamado pelo DAG `create_schemas` e pela ingestão (permite dbt rodar contra dados antigos com NULL nessas colunas)
 - Novos campos do FastF1: adicionar em `LAP_COLUMNS`, propagar em `stg_laps.sql` e (se necessário) criar migração idempotente como `ensure_weather_columns`
-- Quando o FastF1 não retorna `CompoundName` confiável (anos antigos), aplica-se fallback `SOFT→C_SOFT`, `MEDIUM→C_MEDIUM`, etc. — esses valores **não** entram em `compound_physical_evolution` (filtrado para C1–C5 reais)
+- O FastF1 (até v3.8.3) **não expõe** a coluna `CompoundName` em `session.laps`. O composto físico (C1–C5) vem da seed `f1_transform/seeds/pirelli_compound_allocations.csv` — mapeamento manual `(year, round_number) → (c_hard, c_medium, c_soft)`. Atualmente cobre **2023 e 2024**; outros anos têm `compound_name = NULL` (e ficam fora de `compound_physical_evolution` por filtro explícito)
+- O fallback `C_SOFT`/`C_MEDIUM`/`C_HARD` ainda é gerado pelo `load_fastf1.py` para `raw.fastf1_laps.compoundname`, mas `stg_laps` **ignora** essa coluna — confia só na seed. Os placeholders são mantidos no raw pra não perder informação
 
 ### dbt
 - Todos os modelos usam `+materialized: table`, exceto `tyre_degradation` que é `incremental`

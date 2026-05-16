@@ -219,7 +219,7 @@ docker-compose logs -f airflow
 - **Stint**: sequência de voltas no mesmo conjunto de pneus.
 - **Deg per lap (s)**: quanto o pneu perde de pace por volta — métrica central do projeto.
 - **Compound**: categoria de dureza (SOFT = mais rápido/menos durável; HARD = oposto).
-- **Compound name (C1–C5)**: composto físico específico que a Pirelli traz para cada GP.
+- **Compound name (C1–C5)**: composto físico específico que a Pirelli traz para cada GP. Como o FastF1 **não expõe** essa informação, o mapeamento vem da seed `f1_transform/seeds/pirelli_compound_allocations.csv` (manual). Atualmente cobre 2023 e 2024 — anos não mapeados ficam com `compound_name = NULL`.
 - **TyreLife**: número de voltas que aquele set já rodou até aquela volta.
 - **FreshTyre**: se o set era novo ao entrar na pista.
 - A **era moderna** de estratégia de pneus começa em 2018 — alguns marts filtram a partir desse ano (ver `circuit_tyre_profile.sql`).
