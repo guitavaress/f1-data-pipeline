@@ -56,16 +56,18 @@ Credenciais locais de desenvolvimento: `airflow / airflow`, banco `f1`.
 FastF1 API
     │
     ▼
-raw.fastf1_laps              ← ingestão bruta (load_fastf1.py)
+raw.fastf1_laps                   ← ingestão bruta + weather por volta
     │
     ▼
-staging.stg_laps             ← limpeza, cast de tipos, filtros de outlier
-staging.stg_tyre_stints      ← agregação por stint de cada piloto
+staging.stg_laps                  ← limpeza, cast, trackstatus = '1'
+staging.stg_tyre_stints           ← agregação por stint + weather agregada
     │
     ▼
-marts.tyre_degradation       ← deg. por composto × circuito × ano (incremental)
-marts.compound_evolution     ← evolução histórica Pirelli 2014 → hoje
-marts.circuit_tyre_profile   ← perfil de agressividade por circuito
+marts.tyre_degradation            ← deg. por composto × circuito × ano (incremental)
+marts.compound_evolution          ← evolução categórica SOFT/MEDIUM/HARD com `era`
+marts.compound_physical_evolution ← evolução por composto físico C1–C5 (2018+)
+marts.circuit_tyre_profile        ← perfil de agressividade por circuito
+marts.tyre_weather_profile        ← degradação × bucket de temperatura
 ```
 
 - Todos os marts são `table`, exceto `tyre_degradation` que é `incremental` com `unique_key = ['year', 'circuit_key', 'compound']`.
@@ -95,11 +97,25 @@ f1-data-pipeline/
 │       │   └── stg_tyre_stints.sql
 │       └── marts/
 │           ├── schema.yml
-│           ├── tyre_degradation.sql      (incremental)
-│           ├── compound_evolution.sql    (table)
-│           └── circuit_tyre_profile.sql  (table)
+│           ├── tyre_degradation.sql             (incremental)
+│           ├── compound_evolution.sql           (table)
+│           ├── compound_physical_evolution.sql  (table — C1–C5, 2018+)
+│           ├── circuit_tyre_profile.sql         (table)
+│           └── tyre_weather_profile.sql         (table)
 ├── dashboard/
-│   └── app.py                    # Streamlit — 5 páginas de análise
+│   ├── Home.py                   # Entry point — Visão Geral
+│   ├── pages/                    # Multi-page nativo do Streamlit
+│   │   ├── 1_📉_Degradacao_Circuito.py
+│   │   ├── 2_📈_Pirelli_Report_Card.py
+│   │   ├── 3_🗺️_Perfil_Circuitos.py
+│   │   ├── 4_🌡️_Weather_Impact.py
+│   │   └── 5_🔬_Explorador.py
+│   ├── lib/                      # db, theme, components compartilhados
+│   │   ├── db.py
+│   │   ├── theme.py
+│   │   └── components.py
+│   └── .streamlit/
+│       └── config.toml           # Tema dark F1
 ├── cache/                        # Cache FastF1 (montado no container)
 ├── docker-compose.yml
 ├── Dockerfile.airflow
@@ -163,15 +179,16 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 
 ## Dashboard (Streamlit)
 
-Cinco páginas:
+Layout multi-page nativo (entry point: `Home.py`, páginas em `pages/`), tema dark F1, fonte Titillium Web.
 
-1. **🏠 Visão Geral** — KPIs gerais + degradação média global por composto e longevidade dos stints.
-2. **📉 Degradação por Circuito** — curva de degradação por composto em um GP específico + variação YoY.
-3. **📈 Evolução Anual** — comparativo 2014 → hoje, com detecção automática de "grandes mudanças" entre temporadas.
+1. **🏠 Visão Geral** — KPIs gerais + degradação média global por composto categórico.
+2. **📉 Degradação por Circuito** — curva por composto em um GP específico + variação YoY. Filtros encadeados (circuito → anos disponíveis → compostos usados).
+3. **📈 Pirelli Report Card** — evolução do **composto físico** C1–C5 (a comparação correta entre anos). Toggle "Modo honesto" filtra circuitos com cobertura ≥80% no range para mitigar viés de calendário.
 4. **🗺️ Perfil de Circuitos** — heatmap circuito × composto, top-5 mais agressivos, distribuição por tier.
-5. **🔬 Explorador** — editor de SQL livre contra o schema `marts`.
+5. **🌡️ Weather Impact** — scatter `track_temp × deg` por stint + heatmap por bucket de temperatura. Banner dinâmico de cobertura de weather.
+6. **🔬 Explorador** — editor de SQL livre contra o schema `marts`.
 
-Cores dos compostos são centralizadas em `COMPOUND_COLORS` (`dashboard/app.py`) e seguem o padrão Pirelli oficial.
+Cores centralizadas em [`dashboard/lib/theme.py`](dashboard/lib/theme.py): `COMPOUND_COLORS` (categórico, padrão Pirelli) e `PHYSICAL_COMPOUND_COLORS` (C1–C5, gradiente claro→quente).
 
 -----
 

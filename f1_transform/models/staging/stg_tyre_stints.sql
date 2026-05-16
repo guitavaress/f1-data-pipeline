@@ -30,7 +30,14 @@ stints as (
         regr_slope(laptime_s, tyre_life) as deg_per_lap_s,
 
         -- qualidade do ajuste linear (0–1). R² baixo = stint errático.
-        regr_r2(laptime_s, tyre_life)    as deg_fit_r2
+        regr_r2(laptime_s, tyre_life)    as deg_fit_r2,
+
+        -- weather agregada por stint (NULL em rounds antigos sem captura).
+        -- Usar avg porque temperaturas variam ao longo de um stint de 20+ voltas.
+        avg(track_temp_c)                as avg_track_temp_c,
+        avg(air_temp_c)                  as avg_air_temp_c,
+        avg(humidity_pct)                as avg_humidity_pct,
+        bool_or(has_rain)                as had_rain
 
     from laps
     where tyre_life is not null

@@ -33,3 +33,5 @@ models:
         +materialized: table
       circuit_tyre_profile:
         +materialized: table
+      tyre_weather_profile:
+        +materialized: table

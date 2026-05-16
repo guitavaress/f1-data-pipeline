@@ -31,3 +31,14 @@ models:
 
   - name: circuit_tyre_profile
     description: "Perfil de agressividade de cada circuito com os pneus"
+
+  - name: tyre_weather_profile
+    description: >
+      Degradação por composto × faixa de temperatura de pista (buckets de 5°C).
+      Cobertura limitada a rounds com weather capturada — re-ingerir histórico
+      pra ampliar.
+    columns:
+      - name: temp_bucket
+        description: "Faixa de temperatura de pista: <20, 20-25, 25-30, 30-35, 35-40, >40"
+      - name: stints_in_bucket
+        description: "Número de stints no bucket — usar pra filtrar buckets ralos"

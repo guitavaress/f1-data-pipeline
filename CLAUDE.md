@@ -34,13 +34,15 @@ raw.fastf1_laps                   ← ingestão bruta (load_fastf1.py) + weather
     │
     ▼
 staging.stg_laps                  ← limpeza, cast, filtros (trackstatus='1', laptime<300)
-staging.stg_tyre_stints           ← agregação por stint; deg_per_lap_s via regr_slope
+staging.stg_tyre_stints           ← agregação por stint; deg_per_lap_s via regr_slope;
+                                    weather agregada (avg_track_temp_c, etc.)
     │
     ▼
 marts.tyre_degradation            ← deg. por composto × circuito × ano (incremental)
 marts.compound_evolution          ← evolução categórica SOFT/MEDIUM/HARD com coluna `era`
 marts.compound_physical_evolution ← evolução por composto físico C1–C5 (2018+)
 marts.circuit_tyre_profile        ← perfil de agressividade por circuito
+marts.tyre_weather_profile        ← degradação × bucket de temperatura de pista
 ```
 
 ---
@@ -68,9 +70,17 @@ f1-data-pipeline/
 │           ├── tyre_degradation.sql            (incremental)
 │           ├── compound_evolution.sql          (table — categoria SOFT/MEDIUM/HARD)
 │           ├── compound_physical_evolution.sql (table — C1–C5, 2018+)
-│           └── circuit_tyre_profile.sql        (table)
-├── dashboard/
-│   └── app.py                  # Streamlit — 5 páginas de análise
+│           ├── circuit_tyre_profile.sql        (table)
+│           └── tyre_weather_profile.sql        (table — deg × temp bucket)
+├── dashboard/                  # Streamlit multi-page nativo
+│   ├── Home.py                 # Entry point — Visão Geral
+│   ├── pages/                  # Cada arquivo = uma página
+│   ├── lib/                    # db, theme, components compartilhados
+│   │   ├── db.py               # get_engine, query, compounds_sql
+│   │   ├── theme.py            # COMPOUND_COLORS, PHYSICAL_COMPOUND_COLORS,
+│   │   │                       # PLOTLY_TEMPLATE, inject_fonts
+│   │   └── components.py       # filter_sidebar, kpi_card, safe_dataframe, empty_state
+│   └── .streamlit/config.toml  # Tema dark F1
 ├── docker-compose.yml
 ├── Dockerfile.airflow
 ├── Dockerfile.streamlit
@@ -114,8 +124,12 @@ f1-data-pipeline/
 - Não usar `{{ target.schema }}` diretamente — sempre via macro ou `{{ ref() }}`/`{{ source() }}`
 
 ### Dashboard (Streamlit)
-- `COMPOUND_COLORS` centraliza as cores dos compostos — usar sempre esse dict
-- `@st.cache_data(ttl=300)` em todas as queries ao banco
+- Multi-page nativo: `Home.py` é o entry point, demais páginas em `pages/` (a numeração `1_..._.py`, `2_..._.py` controla a ordem no menu lateral)
+- **Toda página importa de `lib/`**: `from lib.db import query, compounds_sql`, `from lib.theme import PLOTLY_TEMPLATE, ...`, `from lib.components import filter_sidebar, ...`. Não instanciar `sqlalchemy.create_engine` em página
+- Cores: `COMPOUND_COLORS` (categórico Pirelli) e `PHYSICAL_COMPOUND_COLORS` (C1–C5) — ambos em `lib/theme.py`. Cor hex literal em página é refactor candidato
+- Todo `fig.update_layout(...)` deve espalhar `**PLOTLY_TEMPLATE` (fundo transparente + grid sutil + font Titillium Web)
+- `@st.cache_data(ttl=300)` em todas as queries ao banco (já configurado em `lib.db.query`)
+- Filtros: `filter_sidebar('global')` ou `filter_sidebar('by_circuit')` — domínio puxado do banco para evitar combinações vazias
 - Página "🔬 Explorador" permite SQL livre contra o schema `marts`
 
 ---
