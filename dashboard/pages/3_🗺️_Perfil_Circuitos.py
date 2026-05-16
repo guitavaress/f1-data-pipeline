@@ -12,7 +12,7 @@ import streamlit as st
 
 from lib.components import empty_state, filter_sidebar
 from lib.db import compounds_sql, query
-from lib.theme import DEG_SCALE, PLOTLY_TEMPLATE, TIER_COLORS, inject_fonts
+from lib.theme import DEG_SCALE, PLOTLY_TEMPLATE, TIER_COLORS, inject_fonts, plotly_layout
 
 st.set_page_config(page_title="Perfil de Circuitos", page_icon="🗺️", layout="wide")
 inject_fonts()
@@ -89,13 +89,12 @@ for col, comp in zip(per_compound_cols, compounds):
             color="avg_deg_s", color_continuous_scale="Reds",
             labels={"avg_deg_s": "Deg (s/volta)", "event_name": ""},
         )
-        fig_c.update_layout(
-            **PLOTLY_TEMPLATE,
+        fig_c.update_layout(**plotly_layout(
             height=300,
             showlegend=False,
             coloraxis_showscale=False,
             yaxis={"categoryorder": "total ascending"},
-        )
+        ))
         st.plotly_chart(fig_c, use_container_width=True)
 
 # ── Distribuição de tiers em barras ───────────────────────────────────────────
