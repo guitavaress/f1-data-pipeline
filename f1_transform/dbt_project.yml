@@ -17,6 +17,17 @@ target-path: "/tmp/dbt-target"
 log-path: "/tmp/dbt-logs"
 clean-targets: ["/tmp/dbt-target", "dbt_packages"]
 
+seeds:
+  f1_transform:
+    +schema: staging
+    pirelli_compound_allocations:
+      +column_types:
+        year: integer
+        round_number: integer
+        c_hard:  varchar(2)
+        c_medium: varchar(2)
+        c_soft:  varchar(2)
+
 models:
   f1_transform:
     +materialized: table
@@ -32,4 +43,6 @@ models:
       compound_physical_evolution:
         +materialized: table
       circuit_tyre_profile:
+        +materialized: table
+      tyre_weather_profile:
         +materialized: table
