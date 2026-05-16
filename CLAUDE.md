@@ -110,7 +110,7 @@ f1-data-pipeline/
 - **Weather**: `AirTemp/TrackTemp/Humidity/Rainfall` são alinhados por tempo via `laps.get_weather_data()` e injetados em cada volta
 - `ensure_weather_columns()` adiciona idempotentemente as colunas de weather em `raw.fastf1_laps` — chamado pelo DAG `create_schemas` e pela ingestão (permite dbt rodar contra dados antigos com NULL nessas colunas)
 - Novos campos do FastF1: adicionar em `LAP_COLUMNS`, propagar em `stg_laps.sql` e (se necessário) criar migração idempotente como `ensure_weather_columns`
-- O FastF1 (até v3.8.3) **não expõe** a coluna `CompoundName` em `session.laps`. O composto físico (C1–C5) vem da seed `f1_transform/seeds/pirelli_compound_allocations.csv` — mapeamento manual `(year, round_number) → (c_hard, c_medium, c_soft)`. Atualmente cobre **2023 e 2024**; outros anos têm `compound_name = NULL` (e ficam fora de `compound_physical_evolution` por filtro explícito)
+- O FastF1 (até v3.8.3) **não expõe** a coluna `CompoundName` em `session.laps`. O composto físico (C1–C5) vem da seed `f1_transform/seeds/pirelli_compound_allocations.csv` — mapeamento manual `(year, round_number) → (c_hard, c_medium, c_soft)`. Atualmente cobre **2022–2025** (best-effort para 2022 e 2025); 2018–2021 e 2026 têm `compound_name = NULL` (ficam fora de `compound_physical_evolution` por filtro explícito)
 - O fallback `C_SOFT`/`C_MEDIUM`/`C_HARD` ainda é gerado pelo `load_fastf1.py` para `raw.fastf1_laps.compoundname`, mas `stg_laps` **ignora** essa coluna — confia só na seed. Os placeholders são mantidos no raw pra não perder informação
 - ⚠️ **A seed Pirelli NÃO é materializada pelo `f1_pipeline` daily.** O `DbtTaskGroup` do Cosmos só roda `dbt run` (models), nunca `dbt seed`. Em ambientes novos (após `docker-compose down -v`), **rodar `dbt seed` UMA vez** antes do primeiro `dbt run`, ou `stg_laps` quebra com `relation "staging.pirelli_compound_allocations" does not exist`. Quando expandir a seed (adicionar novos anos no CSV), rodar `dbt seed` manualmente — o pipeline não detecta mudança em CSV
 
@@ -122,7 +122,7 @@ f1-data-pipeline/
   - `stint_length >= 5` em `tyre_degradation` e `circuit_tyre_profile`
   - `stint_length >= 3` em `compound_evolution` e `compound_physical_evolution`
   - `laptime < 300` e `trackstatus = '1'` em `stg_laps` (pista verde — sem SC/VSC/yellow/red)
-- Degradação por volta usa **regressão linear** (`regr_slope(laptime_s, tyre_life)`) em `stg_tyre_stints`, não `max - min`. Robusto a outliers. `deg_fit_r2` indica qualidade do ajuste
+- Degradação por volta usa **regressão linear** (`regr_slope(laptime_s, tyre_life) FILTER (WHERE tyre_life >= 3)`) em `stg_tyre_stints`. Não é `max - min`, é robusto a outliers. O `FILTER` descarta as 2 primeiras voltas (warm-up) — sem ele os valores ficam negativos enganosos (laptime cai porque carro está esquentando pneu, não porque "pneu melhora com a idade"). `deg_fit_r2` indica qualidade do ajuste
 - `compound_physical_evolution` é restrito a `year >= 2018` e `compound_name in ('C1'..'C5')` — visão metodologicamente correta para evolução do produto Pirelli
 - `compound_evolution` tem coluna `era` (`'classic'` ≤2017 / `'modern'` ≥2018) — comparações entre eras são apenas categóricas, não físicas
 - Não usar `{{ target.schema }}` diretamente — sempre via macro ou `{{ ref() }}`/`{{ source() }}`
@@ -194,6 +194,7 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 - `unique_key` do modelo `tyre_degradation` — afeta o incremental
 - Filtros `laptime < 300` e `trackstatus = '1'` em `stg_laps.sql` — removem laps de safety car/bandeira/VSC que distorcem degradação
 - `regr_slope` como métrica de degradação em `stg_tyre_stints` — substitui o range `max-min` (sensível a outliers)
+- Filtro `tyre_life >= 3` no `FILTER` do `regr_slope`/`regr_r2` — sem ele a degradação fica enviesada para negativo pelo warm-up das primeiras voltas
 - `target-path` / `log-path` para `/tmp/...` no `dbt_project.yml` — necessário por causa de permissões do bind mount Docker
 - Restrição `year >= 2018` em `compound_physical_evolution` — antes disso não havia sistema C1–C5
 - Estrutura de volumes no `docker-compose.yml` — Airflow depende dos mounts para achar o projeto dbt

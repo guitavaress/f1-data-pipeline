@@ -168,7 +168,7 @@ Sobe três serviços: `postgres`, `airflow` e `streamlit`.
 > - Após `docker-compose down -v` (volume zerado)
 > - Após editar a CSV (ex.: adicionar novos anos de alocações)
 >
-> Cobertura atual da seed: **2023 e 2024** (46 GPs). Anos não cobertos terão `compound_name = NULL` e ficam fora de `marts.compound_physical_evolution`. Para expandir, basta editar a CSV e rerodar `dbt seed`.
+> Cobertura atual da seed: **2022–2025** (92 GPs, com 2022 e 2025 como best-effort). Anos não cobertos (2018–2021, 2026) terão `compound_name = NULL` e ficam fora de `marts.compound_physical_evolution`. Para expandir, basta editar a CSV e rerodar `dbt seed`.
 
 -----
 
