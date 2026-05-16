@@ -2,7 +2,7 @@
 
 Pipeline de dados de Fórmula 1 que coleta voltas de corrida via **FastF1**, armazena em **PostgreSQL**, transforma com **dbt** e expõe os resultados em um dashboard **Streamlit**. Orquestrado por **Apache Airflow** com **Cosmos**.
 
-O objetivo central é **analisar a evolução e degradação dos compostos Pirelli de 2014 a 2026** — quanto cada composto perde de performance por volta, como isso varia entre circuitos e como a Pirelli evoluiu seus pneus ao longo das temporadas.
+O objetivo central é **analisar a evolução e degradação dos compostos Pirelli a partir de 2018** — quanto cada composto perde de performance por volta, como isso varia entre circuitos e como a Pirelli evoluiu seus pneus ao longo das temporadas. (2014–2017 não estão disponíveis pelo FastF1 Live Timing API.)
 
 -----
 
@@ -30,7 +30,7 @@ O objetivo central é **analisar a evolução e degradação dos compostos Pirel
 ## Objetivos
 
 - **Degradação por composto × circuito × ano**: medir, em segundos por volta, quanto cada pneu Pirelli perde de pace ao longo de um stint.
-- **Evolução histórica (2014 → hoje)**: identificar anos em que a Pirelli mudou de forma significativa a curva de degradação ou longevidade de cada composto.
+- **Evolução histórica (2018 → hoje)**: identificar anos em que a Pirelli mudou de forma significativa a curva de degradação ou longevidade de cada composto.
 - **Perfil de circuitos**: classificar os GPs por agressividade (low / medium / high deg) usando dados reais de stint, não tabelas pré-fabricadas.
 - **Ingestão idempotente**: nunca reprocessar uma corrida já presente em `raw.fastf1_laps`; o pipeline diário pega apenas o que é novo.
 
@@ -65,7 +65,7 @@ staging.stg_tyre_stints           ← agregação por stint + weather agregada
     ▼
 marts.tyre_degradation            ← deg. por composto × circuito × ano (incremental)
 marts.compound_evolution          ← evolução categórica SOFT/MEDIUM/HARD com `era`
-marts.compound_physical_evolution ← evolução por composto físico C1–C5 (2018+)
+marts.compound_physical_evolution ← evolução por composto físico C1–C5 (depende da seed)
 marts.circuit_tyre_profile        ← perfil de agressividade por circuito
 marts.tyre_weather_profile        ← degradação × bucket de temperatura
 ```
@@ -83,13 +83,15 @@ marts.tyre_weather_profile        ← degradação × bucket de temperatura
 f1-data-pipeline/
 ├── dags/
 │   ├── fastf1_load.py            # DAG diária incremental (f1_pipeline)
-│   ├── fastf1_backfill.py        # DAG manual de backfill 2014–2026
+│   ├── fastf1_backfill.py        # DAG manual de backfill 2018–2026
 │   └── load_fastf1.py            # Lógica de ingestão FastF1 → raw.fastf1_laps
 ├── f1_transform/                 # Projeto dbt
 │   ├── dbt_project.yml
 │   ├── profiles.yml
 │   ├── macros/
 │   │   └── schema_macros.sql     # Remove o prefixo padrão dos schemas do dbt
+│   ├── seeds/
+│   │   └── pirelli_compound_allocations.csv  # (year, round) → C1–C5 (manual)
 │   └── models/
 │       ├── src.yml
 │       ├── staging/
@@ -200,7 +202,7 @@ Layout multi-page nativo (entry point: `Home.py`, páginas em `pages/`), tema da
 1. **🏠 Visão Geral** — KPIs gerais + degradação média global por composto categórico.
 2. **📉 Degradação por Circuito** — curva por composto em um GP específico + variação YoY. Filtros encadeados (circuito → anos disponíveis → compostos usados).
 3. **📈 Pirelli Report Card** — evolução do **composto físico** C1–C5 (a comparação correta entre anos). Toggle "Modo honesto" filtra circuitos com cobertura ≥80% no range para mitigar viés de calendário.
-4. **🗺️ Perfil de Circuitos** — heatmap circuito × composto, top-5 mais agressivos, distribuição por tier.
+4. **🗺️ Perfil de Circuitos** — heatmap Top-N circuitos (configurável) ordenados por agressividade, Top-5 por composto separadamente (não mistura SOFT urbano com HARD em Suzuka), distribuição em barras, ranking de composto dominante por GP (`usage_pct`).
 5. **🌡️ Weather Impact** — scatter `track_temp × deg` por stint + heatmap por bucket de temperatura. Banner dinâmico de cobertura de weather.
 6. **🔬 Explorador** — editor de SQL livre contra o schema `marts`.
 
@@ -218,6 +220,9 @@ docker-compose up postgres
 docker exec -it <airflow_container> bash
 dbt run    --project-dir /opt/airflow/f1_transform --profiles-dir /opt/airflow/f1_transform
 dbt test   --project-dir /opt/airflow/f1_transform --profiles-dir /opt/airflow/f1_transform
+
+# Carregar/recarregar a seed Pirelli (NÃO roda pelo pipeline daily)
+dbt seed   --project-dir /opt/airflow/f1_transform --profiles-dir /opt/airflow/f1_transform
 
 # Rodar um modelo específico
 dbt run --select tyre_degradation

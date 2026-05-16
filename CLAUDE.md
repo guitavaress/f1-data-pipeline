@@ -6,7 +6,7 @@ Guia de contexto para o Claude Code trabalhar neste repositório.
 
 ## Visão Geral do Projeto
 
-Pipeline de dados de Fórmula 1 que coleta voltas de corrida via **FastF1**, armazena em **PostgreSQL** e transforma com **dbt**, orquestrado pelo **Apache Airflow**. O objetivo central é analisar degradação e evolução dos compostos Pirelli de 2014 a 2026.
+Pipeline de dados de Fórmula 1 que coleta voltas de corrida via **FastF1**, armazena em **PostgreSQL** e transforma com **dbt**, orquestrado pelo **Apache Airflow**. O objetivo central é analisar degradação e evolução dos compostos Pirelli a partir de 2018 (cobertura confiável do Live Timing API).
 
 ---
 
@@ -131,7 +131,9 @@ f1-data-pipeline/
 - Multi-page nativo: `Home.py` é o entry point, demais páginas em `pages/` (a numeração `1_..._.py`, `2_..._.py` controla a ordem no menu lateral)
 - **Toda página importa de `lib/`**: `from lib.db import query, compounds_sql`, `from lib.theme import PLOTLY_TEMPLATE, ...`, `from lib.components import filter_sidebar, ...`. Não instanciar `sqlalchemy.create_engine` em página
 - Cores: `COMPOUND_COLORS` (categórico Pirelli) e `PHYSICAL_COMPOUND_COLORS` (C1–C5) — ambos em `lib/theme.py`. Cor hex literal em página é refactor candidato
-- Todo `fig.update_layout(...)` deve espalhar `**PLOTLY_TEMPLATE` (fundo transparente + grid sutil + font Titillium Web)
+- Plotly layout:
+  - Sem overrides: `fig.update_layout(**PLOTLY_TEMPLATE)` direto
+  - **Com override de `xaxis`/`yaxis`/`font`**: usar `plotly_layout(**overrides)` do `lib/theme.py`. Espalhar `**PLOTLY_TEMPLATE` E passar `xaxis=...` na mesma chamada levanta `TypeError: multiple values for keyword argument 'xaxis'` — esse helper faz deep merge dos sub-dicts e evita o conflito
 - `@st.cache_data(ttl=300)` em todas as queries ao banco (já configurado em `lib.db.query`)
 - Filtros: `filter_sidebar('global')` ou `filter_sidebar('by_circuit')` — domínio puxado do banco para evitar combinações vazias
 - Página "🔬 Explorador" permite SQL livre contra o schema `marts`
@@ -185,6 +187,27 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 - Primeira task `create_schemas` (idempotente) replica o setup do `f1_pipeline` — backfill funciona como **primeira** DAG num ambiente limpo (sem isso, todas as ingestões falham silenciosamente com `schema "raw" does not exist`)
 - Sequencial por design: evita corrupção do cache do FastF1
 - **2014–2017 não estão disponíveis** pelo FastF1 Live Timing API — `session.load(laps=True)` falha com `DataNotLoadedError` em todas as corridas. Faixa do backfill atualizada pra refletir essa realidade
+
+---
+
+## Antes de Abrir / Atualizar PR
+
+**Diretriz permanente:** sempre que a branch estiver pronta para subir pro master, atualizar TODA a documentação afetada *antes* de criar/atualizar o PR. Nunca informar "branch 100% pronta" sem ter passado por esta checklist:
+
+- [ ] **`CLAUDE.md`** reflete:
+  - Novos schemas, marts, seeds, DAGs
+  - Convenções novas (filtros, helpers, padrões de import)
+  - Pitfalls descobertos no caminho (entram em "O que NÃO Alterar")
+  - Mudanças metodológicas que afetam números (ex.: filtro de warm-up)
+- [ ] **`README.md`** reflete:
+  - Estrutura de diretórios atualizada
+  - Lista de páginas do dashboard com descrições atuais
+  - Passos da "Primeira execução" incluindo qualquer ação manual (ex.: `dbt seed`)
+  - Limitações conhecidas (anos sem dados, cobertura de seed, etc.)
+- [ ] **`f1_transform/README.md`** ainda é boilerplate dbt — substituir por documentação do projeto específico (modelos, convenções, comandos)
+- [ ] **PR description** lista o que mudou em granularidade de commit, com test plan executável
+
+Checagem rápida: `git log master..HEAD --oneline` — para cada commit, perguntar "alguma doc precisa refletir isso?".
 
 ---
 
