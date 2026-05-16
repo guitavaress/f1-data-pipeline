@@ -1,6 +1,19 @@
 .idea
 .venv
 .vscode
+.claude
 __pycache__
 logs
 cache
+
+# Claude Design handoff bundle — pra referência local, não versionado
+.design_ref/
+
+# Node / Next.js
+node_modules/
+.next/
+.next/**
+out/
+
+# Plano local — gerado em sessões, não versionar
+PLAN.md

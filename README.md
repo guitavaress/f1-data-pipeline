@@ -38,13 +38,13 @@ O objetivo central é **analisar a evolução e degradação dos compostos Pirel
 
 ## Stack
 
-| Serviço       | Tecnologia                       | Porta |
-|---------------|----------------------------------|-------|
-| Orquestração  | Apache Airflow 2.8.1 + Cosmos    | 8080  |
-| Banco         | PostgreSQL 15                    | 5432  |
-| Transformação | dbt-postgres 1.7.11              | —     |
-| Dashboard     | Streamlit + Plotly               | 8501  |
-| Ingestão      | FastF1 (Python)                  | —     |
+| Serviço       | Tecnologia                          | Porta |
+|---------------|-------------------------------------|-------|
+| Orquestração  | Apache Airflow 2.8.1 + Cosmos       | 8080  |
+| Banco         | PostgreSQL 15                       | 5432  |
+| Transformação | dbt-postgres 1.7.11                 | —     |
+| Dashboard     | Next.js 14 (App Router) + node-pg   | 8501  |
+| Ingestão      | FastF1 (Python)                     | —     |
 
 Credenciais locais de desenvolvimento: `airflow / airflow`, banco `f1`.
 
@@ -104,24 +104,22 @@ f1-data-pipeline/
 │           ├── compound_physical_evolution.sql  (table — C1–C5, 2018+)
 │           ├── circuit_tyre_profile.sql         (table)
 │           └── tyre_weather_profile.sql         (table)
-├── dashboard/
-│   ├── Home.py                   # Entry point — Visão Geral
-│   ├── pages/                    # Multi-page nativo do Streamlit
-│   │   ├── 1_📉_Degradacao_Circuito.py
-│   │   ├── 2_📈_Pirelli_Report_Card.py
-│   │   ├── 3_🗺️_Perfil_Circuitos.py
-│   │   ├── 4_🌡️_Weather_Impact.py
-│   │   └── 5_🔬_Explorador.py
-│   ├── lib/                      # db, theme, components compartilhados
-│   │   ├── db.py
-│   │   ├── theme.py
-│   │   └── components.py
-│   └── .streamlit/
-│       └── config.toml           # Tema dark F1
+├── dashboard-next/               # Next.js 14 (App Router) — substitui Streamlit
+│   ├── package.json
+│   ├── lib/db.js                 # pool node-pg + helpers
+│   ├── design/                   # do handoff Claude Design — adaptado p/ ES modules
+│   │   ├── styles.css            # tokens OKLCH + layout
+│   │   ├── lib/charts.jsx        # SVG primitives
+│   │   └── components/shell.jsx  # Sidebar, Topbar, Card, KPI, …
+│   └── app/
+│       ├── layout.jsx            # shell server-side
+│       ├── page.jsx              # Overview (/)
+│       ├── circuit/, report/, circuits/, weather/, explorer/  # outras páginas
+│       └── api/<page>/route.js   # 1 endpoint por página, revalidate=300
 ├── cache/                        # Cache FastF1 (montado no container)
 ├── docker-compose.yml
 ├── Dockerfile.airflow
-├── Dockerfile.streamlit
+├── Dockerfile.next               # multi-stage Node 20 → standalone
 ├── CLAUDE.md                     # Guia de contexto para o Claude Code
 └── README.md
 ```
@@ -142,14 +140,14 @@ cd f1-data-pipeline
 docker-compose up --build
 ```
 
-Sobe três serviços: `postgres`, `airflow` e `streamlit`.
+Sobe três serviços: `postgres`, `airflow` e `dashboard` (Next.js).
 
 ### 3. Acessos
 
 | UI         | URL                      | Credenciais     |
 |------------|--------------------------|-----------------|
 | Airflow    | http://localhost:8080    | `admin / admin` |
-| Streamlit  | http://localhost:8501    | —               |
+| Dashboard  | http://localhost:8501    | —               |
 | PostgreSQL | `localhost:5432`, db `f1`| `airflow / airflow` |
 
 ### 4. Primeira execução
@@ -161,7 +159,7 @@ Sobe três serviços: `postgres`, `airflow` e `streamlit`.
      "cd /opt/airflow/f1_transform && dbt seed --profiles-dir ."
    ```
 3. A DAG **`f1_pipeline`** roda diariamente e pega só corridas novas. O dbt **sempre executa** ao final, mesmo sem dados novos, para refletir backfills/reprocessamentos.
-4. Abra o Streamlit em `localhost:8501` para navegar pelo dashboard.
+4. Abra o dashboard Next.js em `localhost:8501` para navegar.
 
 > ⚠️ **Seed Pirelli e ciclo de vida**
 > O arquivo `f1_transform/seeds/pirelli_compound_allocations.csv` mapeia `(year, round_number) → (c_hard, c_medium, c_soft)`. Como o FastF1 não expõe o composto físico (C1–C5), o `stg_laps` faz LEFT JOIN com essa seed.
@@ -195,18 +193,20 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 
 -----
 
-## Dashboard (Streamlit)
+## Dashboard (Next.js)
 
-Layout multi-page nativo (entry point: `Home.py`, páginas em `pages/`), tema dark F1, fonte Titillium Web.
+Estética telemetria/paddock (handoff do Claude Design): fundo OKLCH near-black, IBM Plex Sans + IBM Plex Mono, charts SVG hand-built. Documentação interna em [`dashboard-next/README.md`](dashboard-next/README.md).
 
-1. **🏠 Visão Geral** — KPIs gerais + degradação média global por composto categórico.
-2. **📉 Degradação por Circuito** — curva por composto em um GP específico + variação YoY. Filtros encadeados (circuito → anos disponíveis → compostos usados).
-3. **📈 Pirelli Report Card** — evolução do **composto físico** C1–C5 (a comparação correta entre anos). Toggle "Modo honesto" filtra circuitos com cobertura ≥80% no range para mitigar viés de calendário.
-4. **🗺️ Perfil de Circuitos** — heatmap Top-N circuitos (configurável) ordenados por agressividade, Top-5 por composto separadamente (não mistura SOFT urbano com HARD em Suzuka), distribuição em barras, ranking de composto dominante por GP (`usage_pct`).
-5. **🌡️ Weather Impact** — scatter `track_temp × deg` por stint + heatmap por bucket de temperatura. Banner dinâmico de cobertura de weather.
-6. **🔬 Explorador** — editor de SQL livre contra o schema `marts`.
+| Rota         | Página              | Tabelas |
+|--------------|---------------------|---------|
+| `/`          | Overview            | `marts.compound_evolution` + `marts.tyre_degradation` + `marts.circuit_tyre_profile` |
+| `/circuit`   | Circuit Deep-Dive   | `marts.tyre_degradation` + `staging.stg_tyre_stints` |
+| `/report`    | Pirelli Report Card | `marts.compound_physical_evolution` (modo honesto re-agrega de `staging.stg_tyre_stints`) |
+| `/circuits`  | Circuit Profiles    | `marts.circuit_tyre_profile` |
+| `/weather`   | Weather Impact      | `staging.stg_laps` + `staging.stg_tyre_stints` + `marts.tyre_weather_profile` |
+| `/explorer`  | SQL Explorer        | SELECT livre em `marts.*` e `staging.*` com guard server-side |
 
-Cores centralizadas em [`dashboard/lib/theme.py`](dashboard/lib/theme.py): `COMPOUND_COLORS` (categórico, padrão Pirelli) e `PHYSICAL_COMPOUND_COLORS` (C1–C5, gradiente claro→quente).
+Tokens visuais (cores, fonts, grid) em [`dashboard-next/design/styles.css`](dashboard-next/design/styles.css) como CSS vars. Editar lá se quiser ajustar tema. Charts em [`dashboard-next/design/lib/charts.jsx`](dashboard-next/design/lib/charts.jsx) — SVG puro, sem dependência de chart lib.
 
 -----
 
