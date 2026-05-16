@@ -112,6 +112,7 @@ f1-data-pipeline/
 - Novos campos do FastF1: adicionar em `LAP_COLUMNS`, propagar em `stg_laps.sql` e (se necessário) criar migração idempotente como `ensure_weather_columns`
 - O FastF1 (até v3.8.3) **não expõe** a coluna `CompoundName` em `session.laps`. O composto físico (C1–C5) vem da seed `f1_transform/seeds/pirelli_compound_allocations.csv` — mapeamento manual `(year, round_number) → (c_hard, c_medium, c_soft)`. Atualmente cobre **2023 e 2024**; outros anos têm `compound_name = NULL` (e ficam fora de `compound_physical_evolution` por filtro explícito)
 - O fallback `C_SOFT`/`C_MEDIUM`/`C_HARD` ainda é gerado pelo `load_fastf1.py` para `raw.fastf1_laps.compoundname`, mas `stg_laps` **ignora** essa coluna — confia só na seed. Os placeholders são mantidos no raw pra não perder informação
+- ⚠️ **A seed Pirelli NÃO é materializada pelo `f1_pipeline` daily.** O `DbtTaskGroup` do Cosmos só roda `dbt run` (models), nunca `dbt seed`. Em ambientes novos (após `docker-compose down -v`), **rodar `dbt seed` UMA vez** antes do primeiro `dbt run`, ou `stg_laps` quebra com `relation "staging.pirelli_compound_allocations" does not exist`. Quando expandir a seed (adicionar novos anos no CSV), rodar `dbt seed` manualmente — o pipeline não detecta mudança em CSV
 
 ### dbt
 - Todos os modelos usam `+materialized: table`, exceto `tyre_degradation` que é `incremental`
@@ -149,6 +150,10 @@ docker-compose up postgres
 # Rodar dbt manualmente (dentro do container Airflow)
 docker exec -it <airflow_container> bash
 dbt run --project-dir /opt/airflow/f1_transform --profiles-dir /opt/airflow/f1_transform
+
+# Rodar seed Pirelli (NÃO roda pelo pipeline daily — rodar manualmente após
+# clone limpo ou ao editar pirelli_compound_allocations.csv)
+dbt seed --project-dir /opt/airflow/f1_transform --profiles-dir /opt/airflow/f1_transform
 
 # Rodar modelo específico
 dbt run --select tyre_degradation

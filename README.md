@@ -152,9 +152,23 @@ Sobe três serviços: `postgres`, `airflow` e `streamlit`.
 
 ### 4. Primeira execução
 
-1. No Airflow, ative e dispare a DAG **`f1_historical_backfill`** para popular 2014 → 2026 (rodada manual, sequencial — leva tempo na primeira vez por causa do download do FastF1).
-2. A DAG **`f1_pipeline`** roda diariamente e pega só corridas novas. O dbt **sempre executa** ao final, mesmo sem dados novos, para refletir backfills/reprocessamentos.
-3. Abra o Streamlit em `localhost:8501` para navegar pelo dashboard.
+1. No Airflow, ative e dispare a DAG **`f1_historical_backfill`** para popular 2018 → 2026 (rodada manual, sequencial — leva tempo na primeira vez por causa do download do FastF1).
+2. **Rodar a seed Pirelli UMA vez** — o pipeline daily não materializa seeds, e sem ela o `stg_laps` quebra:
+   ```bash
+   docker exec -it f1-data-pipeline-airflow-1 bash -lc \
+     "cd /opt/airflow/f1_transform && dbt seed --profiles-dir ."
+   ```
+3. A DAG **`f1_pipeline`** roda diariamente e pega só corridas novas. O dbt **sempre executa** ao final, mesmo sem dados novos, para refletir backfills/reprocessamentos.
+4. Abra o Streamlit em `localhost:8501` para navegar pelo dashboard.
+
+> ⚠️ **Seed Pirelli e ciclo de vida**
+> O arquivo `f1_transform/seeds/pirelli_compound_allocations.csv` mapeia `(year, round_number) → (c_hard, c_medium, c_soft)`. Como o FastF1 não expõe o composto físico (C1–C5), o `stg_laps` faz LEFT JOIN com essa seed.
+>
+> O `DbtTaskGroup` do Cosmos **só roda models, não seeds**. Por isso a seed precisa ser rodada manualmente nas seguintes situações:
+> - Após `docker-compose down -v` (volume zerado)
+> - Após editar a CSV (ex.: adicionar novos anos de alocações)
+>
+> Cobertura atual da seed: **2023 e 2024** (46 GPs). Anos não cobertos terão `compound_name = NULL` e ficam fora de `marts.compound_physical_evolution`. Para expandir, basta editar a CSV e rerodar `dbt seed`.
 
 -----
 
