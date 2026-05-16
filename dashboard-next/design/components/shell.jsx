@@ -16,17 +16,25 @@ export const NAV = [
   {
     section: "Analytics",
     items: [
-      { id: "overview",   href: "/",          glyph: "01", label: "Overview" },
-      { id: "circuit",    href: "/circuit",   glyph: "02", label: "Circuit Deep-Dive" },
-      { id: "report",     href: "/report",    glyph: "03", label: "Pirelli Report Card" },
-      { id: "circuits",   href: "/circuits",  glyph: "04", label: "Circuit Profiles" },
-      { id: "weather",    href: "/weather",   glyph: "05", label: "Weather Impact" },
+      { id: "overview",   href: "/",           glyph: "01", label: "Overview" },
+      { id: "circuit",    href: "/circuit",    glyph: "02", label: "Circuit Deep-Dive" },
+      { id: "report",     href: "/report",     glyph: "03", label: "Pirelli Report Card" },
+      { id: "circuits",   href: "/circuits",   glyph: "04", label: "Circuit Profiles" },
+      { id: "weather",    href: "/weather",    glyph: "05", label: "Weather Impact" },
+    ],
+  },
+  {
+    section: "New",
+    items: [
+      { id: "strategy",   href: "/strategy",   glyph: "06", label: "Strategy Lab",        tag: "NEW" },
+      { id: "allocation", href: "/allocation", glyph: "07", label: "Allocation Calendar", tag: "NEW" },
+      { id: "compare",    href: "/compare",    glyph: "08", label: "Compound vs Compound", tag: "NEW" },
     ],
   },
   {
     section: "Tools",
     items: [
-      { id: "explorer",   href: "/explorer",  glyph: "09", label: "SQL Explorer" },
+      { id: "explorer",   href: "/explorer",   glyph: "09", label: "SQL Explorer" },
     ],
   },
 ];

@@ -49,7 +49,10 @@ dashboard-next/
 | `/report`         | `/api/report`      | `marts.compound_physical_evolution` (não-honesto) ou `staging.stg_tyre_stints` re-agregado (honesto) |
 | `/circuits`       | `/api/circuits`    | `marts.circuit_tyre_profile` |
 | `/weather`        | `/api/weather`     | `staging.stg_laps` (cobertura), `staging.stg_tyre_stints` (scatter), `marts.tyre_weather_profile` (heatmap) |
-| `/explorer`       | `/api/explorer`    | qualquer SELECT contra `marts.*` ou `staging.*` (guard server-side) |
+| `/strategy`       | `/api/strategy`    | `marts.tyre_degradation` (simulação client-side) |
+| `/allocation`     | `/api/allocation`  | `staging.pirelli_compound_allocations` + agregados de `circuit_tyre_profile`/`stg_tyre_stints` |
+| `/compare`        | `/api/compare`     | `marts.compound_physical_evolution` + sample 200 stints/compound de `stg_tyre_stints` |
+| `/explorer`       | `/api/explorer`    | qualquer SELECT contra `marts.*` ou `staging.*` (guard server-side + `statement_timeout` 30s) |
 
 ## Conexão com o banco
 
@@ -111,11 +114,31 @@ substitui um role Postgres read-only — quando colocar isso em rede maior, cria
 um user `dashboard_ro` com `GRANT SELECT ON ALL TABLES IN SCHEMA marts, staging`
 e setar `DATABASE_URL` pra ele.
 
-## Out of scope deste primeiro merge
-
-As 3 páginas "NEW" do prototype Claude Design (Strategy Lab, Allocation Calendar,
-Compound vs Compound) ficam pra próxima iteração — todas usam dados que já
-existem nos marts/seed atuais.
+## Out of scope deste merge
 
 O tweaks panel do prototype (canto inferior direito) foi propositalmente
 omitido — é ferramenta de design-time, não feature de produção.
+
+## Páginas NEW (implementadas)
+
+As 3 páginas "NEW" do prototype Claude Design — todas wireadas a dados
+reais dos marts/seed existentes:
+
+| Rota          | Página              | Backend |
+|---------------|---------------------|---------|
+| `/strategy`   | Strategy Lab        | `/api/strategy` — deg/pace/stint de `marts.tyre_degradation`. Simulação roda client-side: 5 estratégias × N voltas com pit loss fixo de 22s |
+| `/allocation` | Allocation Calendar | `/api/allocation` — lê `staging.pirelli_compound_allocations` (seed Pirelli). Enriquece com mean_deg e mean_temp_c agregados de `circuit_tyre_profile`/`stg_tyre_stints` |
+| `/compare`    | Compound vs Compound | `/api/compare?a=C3&b=C4` — historical de `compound_physical_evolution` + sample 200 stints/compound de `stg_tyre_stints`. Radar de 5 dimensões + histogram + verdict cards |
+
+## design/lib/circuits.js
+
+Track outlines reais da F1, derivados do dataset MIT-licensed
+[bacinger/f1-circuits](https://github.com/bacinger/f1-circuits). 24 circuitos
+como SVG paths normalizados (200×120 viewBox).
+
+Usados em:
+- `/circuit` (Circuit Deep-Dive): briefing strip com mini-mapa do GP
+- `/allocation` (Allocation Calendar): mini-mapa por round card
+
+Mapeamento `event_name → key` fica nas próprias páginas (`KEY_FROM_EVENT`
+dict). Se novo GP entrar no calendário, adicionar lá.

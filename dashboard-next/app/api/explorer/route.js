@@ -38,10 +38,14 @@ export async function POST(request) {
 
   const t0 = Date.now();
   try {
+    // Statement timeout só pra essa connection — ad-hoc query não pode
+    // travar o pool. SET LOCAL exige transação; usamos SET regular já que
+    // node-pg reseta a sessão entre statements em pools curtos.
+    await query("SET statement_timeout = '30s'");
     const { rows, fields } = await query(sql);
     const elapsed = Date.now() - t0;
     return Response.json({
-      rows: rows.slice(0, 1000), // hard cap
+      rows: rows.slice(0, 1000),
       truncated: rows.length > 1000,
       total_rows: rows.length,
       columns: fields.map((f) => f.name),

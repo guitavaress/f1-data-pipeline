@@ -80,11 +80,14 @@ f1-data-pipeline/
 │   ├── design/                 # do handoff Claude Design
 │   │   ├── styles.css          # tokens OKLCH + grid
 │   │   ├── lib/charts.jsx      # SVG primitives (LineChart, Heatmap, Scatter, …)
+│   │   ├── lib/circuits.js     # track outlines reais (bacinger MIT) — 24 GPs
 │   │   └── components/shell.jsx # Sidebar, Topbar, Card, KPI, …
 │   └── app/
 │       ├── layout.jsx          # shell server-side
 │       ├── page.jsx            # Overview (/)
-│       ├── circuit/, report/, circuits/, weather/, explorer/  # outras páginas
+│       ├── circuit/, report/, circuits/, weather/        # Analytics
+│       ├── strategy/, allocation/, compare/              # NEW
+│       ├── explorer/                                     # Tools
 │       └── api/<page>/route.js # 1 endpoint por página, com revalidate=300
 ├── docker-compose.yml
 ├── Dockerfile.airflow
@@ -138,7 +141,8 @@ f1-data-pipeline/
 - Charts são SVG puro escritos à mão (`design/lib/charts.jsx`) — sem recharts/plotly. Contrato dos componentes é estável (LineChart espera `{series: [{key, label, color, points: [{x,y}]}]}`, etc.). Estender ali se precisar de chart novo
 - node-pg retorna `bigint` (oid 20) e `numeric` (oid 1700) como string por padrão. `lib/db.js` configura `types.setTypeParser` pra converter pra Number — sem isso `count(*)` quebra `.toFixed()` nos componentes
 - **Cada rota declara `export const revalidate = 300;`** (5 min) — paridade com `@st.cache_data(ttl=300)` do Streamlit antigo. Exceto `/api/explorer` (POST, sem cache)
-- SQL Explorer: guard server-side em `app/api/explorer/route.js` que barra `;` adicional, comandos não-SELECT e keywords destrutivas. **Não substitui** um role read-only no Postgres — colocar isso em produção exige criar `dashboard_ro` com `GRANT SELECT` apenas
+- SQL Explorer: guard server-side em `app/api/explorer/route.js` que barra `;` adicional, comandos não-SELECT e keywords destrutivas. Também aplica `SET statement_timeout = '30s'` antes de cada query pra evitar queries travando o pool. **Não substitui** um role read-only no Postgres — colocar isso em produção exige criar `dashboard_ro` com `GRANT SELECT` apenas
+- Track outlines (SVG paths reais de 24 GPs, ©bacinger MIT) em `design/lib/circuits.js`. Mapeamento `event_name → CIRCUIT_META key` é feito por dict `KEY_FROM_EVENT` repetido em `/circuit/page.jsx` e `/allocation/page.jsx` — quando novo GP entrar no calendário, adicionar nas duas páginas
 - Páginas client (`"use client"`) usam `useState` + `fetch` pros endpoints. Server Components (default) ficam pro layout e dados que não dependem de interação
 
 ---
