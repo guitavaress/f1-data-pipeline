@@ -33,7 +33,11 @@ export const NAV = [
 
 export function Sidebar({ lastRun }) {
   const pathname = usePathname();
-  const isActive = (href) => href === "/" ? pathname === "/" : pathname.startsWith(href);
+  // Match exato + barra final: evita que /circuit case com /circuits.
+  const isActive = (href) => {
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(href + "/");
+  };
 
   return (
     <aside className="sidebar">

@@ -182,11 +182,13 @@ export function Heatmap({ rows, cols, width = 600, cellH = 26, colorScale = "red
     if (v == null) return "var(--bg-2)";
     const t = (v - minV) / ((maxV - minV) || 1);
     if (colorScale === "redgreen") {
+      // Lightness mais alta (0.78–0.86) + chroma mais forte deixa as cells
+      // mais legíveis com texto escuro por cima.
       const hue = 145 - t * 115;
-      const chroma = 0.10 + t * 0.06;
-      return `oklch(${0.62 + t * 0.08} ${chroma} ${hue})`;
+      const chroma = 0.13 + t * 0.06;
+      return `oklch(${0.78 + t * 0.08} ${chroma} ${hue})`;
     }
-    return `oklch(0.65 0.12 ${30 + t * 60})`;
+    return `oklch(0.80 0.13 ${30 + t * 60})`;
   }
 
   return (
@@ -213,8 +215,12 @@ export function Heatmap({ rows, cols, width = 600, cellH = 26, colorScale = "red
                 </rect>
                 {v != null && (
                   <text x={padL + cellW * (ci + 0.5)} y={padT + cellH * (ri + 0.5) + 3.5}
-                        textAnchor="middle" fill="rgba(20,20,22,0.85)"
-                        fontFamily="var(--font-mono)" fontSize="9.5">
+                        textAnchor="middle"
+                        fill="rgba(15,15,18,0.95)"
+                        stroke="rgba(255,255,255,0.55)"
+                        strokeWidth="0.4"
+                        paintOrder="stroke"
+                        fontFamily="var(--font-mono)" fontSize="10" fontWeight="600">
                     {valueFormat(v)}
                   </text>
                 )}
