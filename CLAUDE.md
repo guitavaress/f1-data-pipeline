@@ -80,11 +80,14 @@ f1-data-pipeline/
 │   ├── design/                 # do handoff Claude Design
 │   │   ├── styles.css          # tokens OKLCH + grid
 │   │   ├── lib/charts.jsx      # SVG primitives (LineChart, Heatmap, Scatter, …)
+│   │   ├── lib/circuits.js     # track outlines reais (bacinger MIT) — 24 GPs
 │   │   └── components/shell.jsx # Sidebar, Topbar, Card, KPI, …
 │   └── app/
 │       ├── layout.jsx          # shell server-side
 │       ├── page.jsx            # Overview (/)
-│       ├── circuit/, report/, circuits/, weather/, explorer/  # outras páginas
+│       ├── circuit/, report/, circuits/, weather/        # Analytics
+│       ├── strategy/, allocation/, compare/              # NEW
+│       ├── explorer/                                     # Tools
 │       └── api/<page>/route.js # 1 endpoint por página, com revalidate=300
 ├── docker-compose.yml
 ├── Dockerfile.airflow
@@ -138,7 +141,8 @@ f1-data-pipeline/
 - Charts são SVG puro escritos à mão (`design/lib/charts.jsx`) — sem recharts/plotly. Contrato dos componentes é estável (LineChart espera `{series: [{key, label, color, points: [{x,y}]}]}`, etc.). Estender ali se precisar de chart novo
 - node-pg retorna `bigint` (oid 20) e `numeric` (oid 1700) como string por padrão. `lib/db.js` configura `types.setTypeParser` pra converter pra Number — sem isso `count(*)` quebra `.toFixed()` nos componentes
 - **Cada rota declara `export const revalidate = 300;`** (5 min) — paridade com `@st.cache_data(ttl=300)` do Streamlit antigo. Exceto `/api/explorer` (POST, sem cache)
-- SQL Explorer: guard server-side em `app/api/explorer/route.js` que barra `;` adicional, comandos não-SELECT e keywords destrutivas. **Não substitui** um role read-only no Postgres — colocar isso em produção exige criar `dashboard_ro` com `GRANT SELECT` apenas
+- SQL Explorer: guard server-side em `app/api/explorer/route.js` que barra `;` adicional, comandos não-SELECT e keywords destrutivas. Também aplica `SET statement_timeout = '30s'` antes de cada query pra evitar queries travando o pool. **Não substitui** um role read-only no Postgres — colocar isso em produção exige criar `dashboard_ro` com `GRANT SELECT` apenas
+- Track outlines (SVG paths reais de 24 GPs, ©bacinger MIT) em `design/lib/circuits.js`. Mapeamento `event_name → CIRCUIT_META key` é feito por dict `KEY_FROM_EVENT` repetido em `/circuit/page.jsx` e `/allocation/page.jsx` — quando novo GP entrar no calendário, adicionar nas duas páginas
 - Páginas client (`"use client"`) usam `useState` + `fetch` pros endpoints. Server Components (default) ficam pro layout e dados que não dependem de interação
 
 ---
@@ -195,7 +199,14 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 
 ## Antes de Abrir / Atualizar PR
 
-**Diretriz permanente:** sempre que a branch estiver pronta para subir pro master, atualizar TODA a documentação afetada *antes* de criar/atualizar o PR. Nunca informar "branch 100% pronta" sem ter passado por esta checklist:
+**Diretriz permanente — sem exceções:** quando o usuário declarar "branch 100% / pronta pra merge / vou mergear o PR" (ou equivalente), atualizar TODA a documentação afetada **automaticamente, antes de confirmar que está pronto**. Se o usuário precisar perguntar "as docs estão atualizadas?", já falhei a diretriz.
+
+Gatilhos que disparam a checklist (sem esperar autorização):
+- "vou mergear", "vamos mergear", "está pronta pra merge", "branch está 100%"
+- "atualiza o PR" / "atualiza a branch" (significa antes do push, não depois)
+- Qualquer pedido de revisão final de uma branch
+
+Checklist obrigatória rodada **antes** do "✅ pronto":
 
 - [ ] **`CLAUDE.md`** reflete:
   - Novos schemas, marts, seeds, DAGs
@@ -221,6 +232,7 @@ Checagem rápida: `git log master..HEAD --oneline` — para cada commit, pergunt
 - Filtros `laptime < 300` e `trackstatus = '1'` em `stg_laps.sql` — removem laps de safety car/bandeira/VSC que distorcem degradação
 - `regr_slope` como métrica de degradação em `stg_tyre_stints` — substitui o range `max-min` (sensível a outliers)
 - Filtro `tyre_life >= 3` no `FILTER` do `regr_slope`/`regr_r2` — sem ele a degradação fica enviesada para negativo pelo warm-up das primeiras voltas
+- **Regra das 2 compostos slick (FIA Sporting Reg. Art. 30.5)** em `/strategy`: em corrida seca, toda estratégia precisa de ≥2 compostos distintos. Strategy Lab valida isso filtrando `isDryLegal()` no array `STRATEGIES`. Single-compound (INTER/WET ou repetido) só aparece quando toggle "Wet race" estiver ON. Não remover essa validação — qualquer estratégia mostrada em modo dry tem que ser legalmente realizável
 - `target-path` / `log-path` para `/tmp/...` no `dbt_project.yml` — necessário por causa de permissões do bind mount Docker
 - Restrição `year >= 2018` em `compound_physical_evolution` — antes disso não havia sistema C1–C5
 - Estrutura de volumes no `docker-compose.yml` — Airflow depende dos mounts para achar o projeto dbt

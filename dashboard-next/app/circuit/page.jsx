@@ -16,8 +16,38 @@ import {
 import {
   LineChart, BarChart, Scatter, COMPOUND_COLOR,
 } from "@/design/lib/charts";
+import { CIRCUIT_META } from "@/design/lib/circuits";
 
 const DEFAULT_CIRCUIT = "British Grand Prix";
+
+// event_name → key do CIRCUIT_META (mesmo dicionário do /allocation).
+const KEY_FROM_EVENT = {
+  "Bahrain Grand Prix":         "bahrain",
+  "Saudi Arabian Grand Prix":   "saudi_arabia",
+  "Australian Grand Prix":      "australia",
+  "Japanese Grand Prix":        "japan",
+  "Chinese Grand Prix":         "china",
+  "Miami Grand Prix":           "miami",
+  "Emilia Romagna Grand Prix":  "emilia_romagna",
+  "Monaco Grand Prix":          "monaco",
+  "Canadian Grand Prix":        "canada",
+  "Spanish Grand Prix":         "spain",
+  "Austrian Grand Prix":        "austria",
+  "British Grand Prix":         "britain",
+  "Hungarian Grand Prix":       "hungary",
+  "Belgian Grand Prix":         "belgium",
+  "Dutch Grand Prix":           "netherlands",
+  "Italian Grand Prix":         "italy",
+  "Azerbaijan Grand Prix":      "azerbaijan",
+  "Singapore Grand Prix":       "singapore",
+  "United States Grand Prix":   "united_states",
+  "Mexico City Grand Prix":     "mexico",
+  "São Paulo Grand Prix":       "brazil",
+  "Las Vegas Grand Prix":       "las_vegas",
+  "Qatar Grand Prix":           "qatar",
+  "Abu Dhabi Grand Prix":       "abu_dhabi",
+  "French Grand Prix":          "france",
+};
 
 export default function PageCircuit() {
   const [circuits, setCircuits] = useState([]);
@@ -118,6 +148,39 @@ export default function PageCircuit() {
           </>
         }
       />
+
+      {/* Briefing strip com mini-mapa do circuito */}
+      {(() => {
+        const ckey = KEY_FROM_EVENT[circuit];
+        const meta = ckey ? CIRCUIT_META[ckey] : null;
+        if (!meta) return null;
+        return (
+          <div className="card" style={{ marginBottom: 18 }}>
+            <div style={{
+              display: "grid", gridTemplateColumns: "180px 1fr auto",
+              alignItems: "center", gap: 24, padding: "14px 20px",
+            }}>
+              <svg viewBox="0 0 200 120" width="100%"
+                   style={{ display: "block", maxHeight: 100 }}>
+                <path d={meta.path} fill="none" stroke="var(--fg-2)" strokeWidth="1.6" />
+                <circle cx={meta.start.x} cy={meta.start.y} r="3" fill="var(--hot)" />
+              </svg>
+              <div>
+                <div className="page-eyebrow" style={{ marginBottom: 2 }}>
+                  TRACK · {meta.flag?.toUpperCase()}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>{meta.name}</div>
+                <div className="mono muted" style={{ fontSize: 11, marginTop: 4 }}>
+                  {meta.length_m.toLocaleString()} m · {meta.points} polyline points · normalized 200×120
+                </div>
+              </div>
+              <div className="mono muted" style={{ fontSize: 10, textAlign: "right" }}>
+                outline data ©<br/>bacinger/f1-circuits (MIT)
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-4">
         <KPI label={`Latest year`}

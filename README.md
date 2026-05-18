@@ -204,7 +204,12 @@ Estética telemetria/paddock (handoff do Claude Design): fundo OKLCH near-black,
 | `/report`    | Pirelli Report Card | `marts.compound_physical_evolution` (modo honesto re-agrega de `staging.stg_tyre_stints`) |
 | `/circuits`  | Circuit Profiles    | `marts.circuit_tyre_profile` |
 | `/weather`   | Weather Impact      | `staging.stg_laps` + `staging.stg_tyre_stints` + `marts.tyre_weather_profile` |
-| `/explorer`  | SQL Explorer        | SELECT livre em `marts.*` e `staging.*` com guard server-side |
+| `/strategy`  | Strategy Lab        | `marts.tyre_degradation` — simulação de pit-window client-side com validação da regra FIA Art. 30.5 (≥2 compostos slick em corrida seca) e toggle Dry/Wet race |
+| `/allocation`| Allocation Calendar | `staging.pirelli_compound_allocations` (seed) + agregados |
+| `/compare`   | Compound vs Compound | `marts.compound_physical_evolution` + sample stints |
+| `/explorer`  | SQL Explorer        | SELECT livre em `marts.*` e `staging.*` com guard + `statement_timeout` 30s |
+
+Track outlines reais (bacinger/f1-circuits, MIT) em [`dashboard-next/design/lib/circuits.js`](dashboard-next/design/lib/circuits.js) — usados pra mini-mapa no Circuit Deep-Dive e Allocation Calendar.
 
 Tokens visuais (cores, fonts, grid) em [`dashboard-next/design/styles.css`](dashboard-next/design/styles.css) como CSS vars. Editar lá se quiser ajustar tema. Charts em [`dashboard-next/design/lib/charts.jsx`](dashboard-next/design/lib/charts.jsx) — SVG puro, sem dependência de chart lib.
 
