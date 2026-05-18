@@ -199,7 +199,14 @@ create_schemas → check_new_data → ingest_fastf1_data → dbt_transform (Cosm
 
 ## Antes de Abrir / Atualizar PR
 
-**Diretriz permanente:** sempre que a branch estiver pronta para subir pro master, atualizar TODA a documentação afetada *antes* de criar/atualizar o PR. Nunca informar "branch 100% pronta" sem ter passado por esta checklist:
+**Diretriz permanente — sem exceções:** quando o usuário declarar "branch 100% / pronta pra merge / vou mergear o PR" (ou equivalente), atualizar TODA a documentação afetada **automaticamente, antes de confirmar que está pronto**. Se o usuário precisar perguntar "as docs estão atualizadas?", já falhei a diretriz.
+
+Gatilhos que disparam a checklist (sem esperar autorização):
+- "vou mergear", "vamos mergear", "está pronta pra merge", "branch está 100%"
+- "atualiza o PR" / "atualiza a branch" (significa antes do push, não depois)
+- Qualquer pedido de revisão final de uma branch
+
+Checklist obrigatória rodada **antes** do "✅ pronto":
 
 - [ ] **`CLAUDE.md`** reflete:
   - Novos schemas, marts, seeds, DAGs
