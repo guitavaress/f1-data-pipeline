@@ -9,20 +9,44 @@
  * usando deg_per_lap e adiciona pit loss fixo entre stints.
  */
 import React, { useEffect, useMemo, useState } from "react";
-import { PageHeader, KPI, Card, EmptyState } from "@/design/components/shell";
+import { PageHeader, KPI, Card, Segmented, EmptyState } from "@/design/components/shell";
 import {
   DegradationCurve, COMPOUND_COLOR, makeScale, niceTicks,
 } from "@/design/lib/charts";
 
 const PIT_LOSS_S = 22;
 
+// Regra Pirelli/FIA: em corrida SECA, o piloto é obrigado a usar pelo menos
+// DOIS compostos de slick distintos (Sporting Regulations Art. 30.5).
+// Estratégias single-compound só são legais em wet race declarada
+// (quando intermediários ou wets foram usados em algum momento).
+//
+// `dry` = lista de estratégias legais em piso seco (≥ 2 compostos distintos).
+// `wet` = exemplos pra quando o GP é declarado wet — single-compound (INTER
+// ou WET) torna-se viável.
 const STRATEGIES = {
-  medium_hard: { label: "1-stop · M → H",     stints: [{ c: "MEDIUM", frac: 0.45 }, { c: "HARD",   frac: 0.55 }] },
-  soft_medium: { label: "1-stop · S → M",     stints: [{ c: "SOFT",   frac: 0.32 }, { c: "MEDIUM", frac: 0.68 }] },
-  soft_hard:   { label: "1-stop · S → H",     stints: [{ c: "SOFT",   frac: 0.28 }, { c: "HARD",   frac: 0.72 }] },
-  s_m_s:       { label: "2-stop · S → M → S", stints: [{ c: "SOFT", frac: 0.28 }, { c: "MEDIUM", frac: 0.45 }, { c: "SOFT", frac: 0.27 }] },
-  m_m_m:       { label: "2-stop · M → M → M", stints: [{ c: "MEDIUM", frac: 0.34 }, { c: "MEDIUM", frac: 0.34 }, { c: "MEDIUM", frac: 0.32 }] },
+  m_h:   { label: "1-stop · M → H",     stints: [{ c: "MEDIUM", frac: 0.45 }, { c: "HARD",   frac: 0.55 }] },
+  s_m:   { label: "1-stop · S → M",     stints: [{ c: "SOFT",   frac: 0.32 }, { c: "MEDIUM", frac: 0.68 }] },
+  s_h:   { label: "1-stop · S → H",     stints: [{ c: "SOFT",   frac: 0.28 }, { c: "HARD",   frac: 0.72 }] },
+  h_m:   { label: "1-stop · H → M",     stints: [{ c: "HARD",   frac: 0.55 }, { c: "MEDIUM", frac: 0.45 }] },
+  s_m_h: { label: "2-stop · S → M → H", stints: [{ c: "SOFT", frac: 0.25 }, { c: "MEDIUM", frac: 0.40 }, { c: "HARD", frac: 0.35 }] },
+  s_m_s: { label: "2-stop · S → M → S", stints: [{ c: "SOFT", frac: 0.28 }, { c: "MEDIUM", frac: 0.45 }, { c: "SOFT", frac: 0.27 }] },
+  m_s_m: { label: "2-stop · M → S → M", stints: [{ c: "MEDIUM", frac: 0.36 }, { c: "SOFT", frac: 0.28 }, { c: "MEDIUM", frac: 0.36 }] },
+  m_h_m: { label: "2-stop · M → H → M", stints: [{ c: "MEDIUM", frac: 0.33 }, { c: "HARD", frac: 0.34 }, { c: "MEDIUM", frac: 0.33 }] },
+  // Wet-only — single-compound. Mostradas apenas quando wet race toggle ON.
+  int_only: { label: "Wet · INTER full",  stints: [{ c: "INTERMEDIATE", frac: 1.0 }], wetOnly: true },
+  wet_only: { label: "Wet · WET full",    stints: [{ c: "WET", frac: 1.0 }], wetOnly: true },
 };
+
+// Quantos compostos distintos a estratégia usa.
+function distinctCompounds(strat) {
+  return new Set(strat.stints.map((s) => s.c)).size;
+}
+
+// Legal em corrida seca exige ≥2 compostos diferentes.
+function isDryLegal(strat) {
+  return distinctCompounds(strat) >= 2;
+}
 
 const DEFAULT_CIRCUIT = "British Grand Prix";
 
@@ -31,7 +55,8 @@ export default function PageStrategy() {
   const [circuit, setCircuit] = useState("");
   const [year, setYear] = useState(null);
   const [raceLaps, setRaceLaps] = useState(52);
-  const [strategy, setStrategy] = useState("medium_hard");
+  const [strategy, setStrategy] = useState("m_h");
+  const [wetRace, setWetRace] = useState(false);
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -84,10 +109,31 @@ export default function PageStrategy() {
     return { totalT, segments };
   }
 
-  const sim = useMemo(() => simulate(STRATEGIES[strategy]), [strategy, rows, raceLaps]);
+  // Estratégias disponíveis dependem de wetRace:
+  // - dry  → só dry-legal (≥2 compostos slick distintos)
+  // - wet  → tudo (incluindo single-compound INTER/WET)
+  const visibleStrategies = useMemo(() => {
+    return Object.entries(STRATEGIES).filter(([_, s]) => {
+      if (s.wetOnly) return wetRace;
+      return wetRace || isDryLegal(s);
+    });
+  }, [wetRace]);
+
+  // Se a estratégia selecionada desapareceu da lista visível (ex.: tinha
+  // wet selecionado e desligou wetRace), volta pra primeira disponível.
+  useEffect(() => {
+    if (!visibleStrategies.find(([k]) => k === strategy)) {
+      const first = visibleStrategies[0]?.[0];
+      if (first) setStrategy(first);
+    }
+  }, [visibleStrategies, strategy]);
+
+  const sim = useMemo(() => simulate(STRATEGIES[strategy] ?? STRATEGIES.m_h),
+                      [strategy, rows, raceLaps]);
+  // Pra ranking: só estratégias visíveis (respeitam wetRace)
   const allSims = useMemo(() =>
-    Object.entries(STRATEGIES).map(([k, s]) => ({ key: k, ...s, sim: simulate(s) })),
-    [rows, raceLaps]
+    visibleStrategies.map(([k, s]) => ({ key: k, ...s, sim: simulate(s) })),
+    [rows, raceLaps, visibleStrategies]
   );
   const bestKey = allSims.length
     ? allSims.reduce((a, b) => a.sim.totalT < b.sim.totalT ? a : b).key
@@ -127,19 +173,46 @@ export default function PageStrategy() {
       <PageHeader
         eyebrow="NEW · STRATEGY LAB"
         title="Pit-window simulator"
-        desc="Builds on marts.tyre_degradation. Pick circuit + race length + strategy — see expected total race time and where pit windows open. Math runs client-side; the server only provides deg/pace/stint per compound."
+        desc="Builds on marts.tyre_degradation. Pick circuit + race length + strategy — see expected total race time and where pit windows open. Math runs client-side; the server only provides deg/pace/stint per compound. Strategies enforce the FIA two-compound rule (Sporting Regs Art. 30.5) — toggle 'Wet race' to allow single-compound INTER/WET runs."
         right={
           <>
+            <Segmented
+              options={[
+                { value: 0, label: "Dry race" },
+                { value: 1, label: "Wet race" },
+              ]}
+              value={wetRace ? 1 : 0}
+              onChange={(v) => setWetRace(!!v)}
+            />
             <select className="select" value={circuit}
                     onChange={(e) => setCircuit(e.target.value)}>
               {circuits.map((c) => (
                 <option key={c.circuit_key} value={c.circuit_key}>{c.event_name}</option>
               ))}
             </select>
-            <span className="btn">save scenario</span>
           </>
         }
       />
+
+      {/* Banner com a regra de 2 compostos */}
+      <div className="card" style={{
+        padding: "10px 16px", marginBottom: 16,
+        borderLeft: `3px solid var(--${wetRace ? "cool" : "amber"})`,
+        display: "flex", alignItems: "center", gap: 12,
+      }}>
+        <span className="mono" style={{
+          color: `var(--${wetRace ? "cool" : "amber"})`,
+          fontSize: 11, letterSpacing: "0.08em",
+        }}>
+          {wetRace ? "💧 WET RACE" : "⚠ DRY RACE · ART. 30.5"}
+        </span>
+        <span style={{ fontSize: 13 }}>
+          {wetRace
+            ? <>Wet declarada — single-compound (INTER ou WET) é permitido. A regra dos dois compostos slick fica suspensa.</>
+            : <>FIA exige ao menos <strong>2 compostos de slick distintos</strong> ao longo da corrida.
+                Single-compound (M→M→M etc.) seria DSQ — está fora do set abaixo.</>}
+        </span>
+      </div>
 
       <div className="grid grid-4">
         <KPI label="Race laps"
@@ -158,14 +231,23 @@ export default function PageStrategy() {
 
       <div className="mt-20" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <span className="mono muted" style={{ fontSize: 11 }}>STRATEGY</span>
-        {Object.entries(STRATEGIES).map(([k, s]) => (
+        {visibleStrategies.map(([k, s]) => (
           <button key={k} className={`chip${strategy === k ? " active" : ""}`}
                   onClick={() => setStrategy(k)}
                   style={{ background: "transparent", color: "inherit", cursor: "pointer" }}>
             {bestKey === k && <span style={{ color: "var(--good)" }}>★</span>}
             <span>{s.label}</span>
+            {s.wetOnly && (
+              <span className="mono" style={{ color: "var(--cool)", fontSize: 9,
+                                                marginLeft: 4, letterSpacing: "0.08em" }}>
+                WET
+              </span>
+            )}
           </button>
         ))}
+        <span className="mono muted" style={{ marginLeft: "auto", fontSize: 10 }}>
+          {visibleStrategies.length} legal strategies · {wetRace ? "wet" : "dry"}
+        </span>
       </div>
 
       <div className="grid grid-12 mt-20 gap-lg">
@@ -232,7 +314,15 @@ export default function PageStrategy() {
 
         <div className="col-4">
           <Card title="Pit windows" sub="OPTIMAL LAP RANGE PER STOP">
-            {STRATEGIES[strategy].stints.slice(0, -1).map((seg, i) => {
+            {STRATEGIES[strategy].stints.length <= 1 ? (
+              <div className="mono muted" style={{ fontSize: 12, padding: "8px 0" }}>
+                Single-stint strategy — no scheduled pit stops.
+                <div style={{ marginTop: 6, fontSize: 10 }}>
+                  Só viável em wet race declarada (Art. 30.5 suspende a regra
+                  de 2 compostos quando INTER/WET é usado).
+                </div>
+              </div>
+            ) : STRATEGIES[strategy].stints.slice(0, -1).map((seg, i) => {
               const cum = STRATEGIES[strategy].stints.slice(0, i + 1)
                           .reduce((a, s) => a + s.frac, 0);
               const idealLap = Math.round(cum * raceLaps);

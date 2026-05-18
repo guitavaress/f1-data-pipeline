@@ -49,7 +49,7 @@ dashboard-next/
 | `/report`         | `/api/report`      | `marts.compound_physical_evolution` (não-honesto) ou `staging.stg_tyre_stints` re-agregado (honesto) |
 | `/circuits`       | `/api/circuits`    | `marts.circuit_tyre_profile` |
 | `/weather`        | `/api/weather`     | `staging.stg_laps` (cobertura), `staging.stg_tyre_stints` (scatter), `marts.tyre_weather_profile` (heatmap) |
-| `/strategy`       | `/api/strategy`    | `marts.tyre_degradation` (simulação client-side) |
+| `/strategy`       | `/api/strategy`    | `marts.tyre_degradation` (simulação client-side, valida regra FIA 30.5) |
 | `/allocation`     | `/api/allocation`  | `staging.pirelli_compound_allocations` + agregados de `circuit_tyre_profile`/`stg_tyre_stints` |
 | `/compare`        | `/api/compare`     | `marts.compound_physical_evolution` + sample 200 stints/compound de `stg_tyre_stints` |
 | `/explorer`       | `/api/explorer`    | qualquer SELECT contra `marts.*` ou `staging.*` (guard server-side + `statement_timeout` 30s) |
@@ -126,7 +126,7 @@ reais dos marts/seed existentes:
 
 | Rota          | Página              | Backend |
 |---------------|---------------------|---------|
-| `/strategy`   | Strategy Lab        | `/api/strategy` — deg/pace/stint de `marts.tyre_degradation`. Simulação roda client-side: 5 estratégias × N voltas com pit loss fixo de 22s |
+| `/strategy`   | Strategy Lab        | `/api/strategy` — deg/pace/stint de `marts.tyre_degradation`. Simulação roda client-side. **Aplica a regra FIA Art. 30.5** (corrida seca exige ≥2 compostos de slick distintos): em modo "Dry race" só aparecem estratégias multi-compound; toggle "Wet race" libera single-compound INTER ou WET. Pit windows fallback explica que single-stint = sem stops programados |
 | `/allocation` | Allocation Calendar | `/api/allocation` — lê `staging.pirelli_compound_allocations` (seed Pirelli). Enriquece com mean_deg e mean_temp_c agregados de `circuit_tyre_profile`/`stg_tyre_stints` |
 | `/compare`    | Compound vs Compound | `/api/compare?a=C3&b=C4` — historical de `compound_physical_evolution` + sample 200 stints/compound de `stg_tyre_stints`. Radar de 5 dimensões + histogram + verdict cards |
 

@@ -225,6 +225,7 @@ Checagem rápida: `git log master..HEAD --oneline` — para cada commit, pergunt
 - Filtros `laptime < 300` e `trackstatus = '1'` em `stg_laps.sql` — removem laps de safety car/bandeira/VSC que distorcem degradação
 - `regr_slope` como métrica de degradação em `stg_tyre_stints` — substitui o range `max-min` (sensível a outliers)
 - Filtro `tyre_life >= 3` no `FILTER` do `regr_slope`/`regr_r2` — sem ele a degradação fica enviesada para negativo pelo warm-up das primeiras voltas
+- **Regra das 2 compostos slick (FIA Sporting Reg. Art. 30.5)** em `/strategy`: em corrida seca, toda estratégia precisa de ≥2 compostos distintos. Strategy Lab valida isso filtrando `isDryLegal()` no array `STRATEGIES`. Single-compound (INTER/WET ou repetido) só aparece quando toggle "Wet race" estiver ON. Não remover essa validação — qualquer estratégia mostrada em modo dry tem que ser legalmente realizável
 - `target-path` / `log-path` para `/tmp/...` no `dbt_project.yml` — necessário por causa de permissões do bind mount Docker
 - Restrição `year >= 2018` em `compound_physical_evolution` — antes disso não havia sistema C1–C5
 - Estrutura de volumes no `docker-compose.yml` — Airflow depende dos mounts para achar o projeto dbt
