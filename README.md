@@ -251,6 +251,10 @@ docker-compose logs -f airflow
 
 -----
 
+## Projeto Irmão
+
+[`f1-realtime-strategy`](https://github.com/guitavaress/f1-realtime-strategy) — predição pré-evento, ingestão live (FastF1 livetiming) e simulação Monte Carlo de estratégias. Consome os marts deste pipeline em modo read-only via SQL; nunca escreve em `raw`, `staging` ou `marts`. Schemas próprios: `predictions`, `live`, `comparisons`.
+
 ## Documentação Adicional
 
 Para detalhes operacionais, convenções de schema/nomenclatura, e o que **não** alterar sem discussão, ver [`CLAUDE.md`](./CLAUDE.md).
